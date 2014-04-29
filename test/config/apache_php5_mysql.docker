@@ -1,0 +1,37 @@
+FROM ubuntu:14.04
+
+MAINTAINER hecke, hecke@naberius.de
+
+RUN echo "deb http://archive.ubuntu.com/ubuntu trusty main universe" > /etc/apt/sources.list
+RUN apt-get update
+
+RUN apt-get install -y apache2 php5 mysql-common mysql-server-5.5 openssh-server
+RUN apt-get install -y php5
+RUN apt-get install -y mysql-server
+RUN apt-get install -y php5-mysql
+RUN apt-get install -y openssh-server
+RUN apt-get install -y mc nano syslogd
+
+RUN mkdir /var/run/sshd
+RUN chmod 0755 /var/run/sshd
+RUN echo 'root:1234' | chpasswd
+RUN sed -i 's/PermitRootLogin without-password/PermitRootLogin yes/g' /etc/ssh/sshd_config
+
+ENV APACHE_RUN_USER www-data
+ENV APACHE_RUN_GROUP www-data
+ENV APACHE_LOG_DIR /var/log/apache2
+
+RUN echo "#!/bin/bash" >> /etc/startup.sh
+RUN echo "syslogd &" >> /etc/startup.sh
+RUN echo "service ssh start &" >> /etc/startup.sh
+RUN echo "service mysql start &" >> /etc/startup.sh
+RUN echo "service apache2 start &" >> /etc/startup.sh
+RUN echo "/bin/bash -i" >> /etc/startup.sh
+RUN chmod +x /etc/startup.sh
+
+EXPOSE 80
+EXPOSE 22
+EXPOSE 3306
+
+ENTRYPOINT ["/bin/bash"]
+CMD ["/etc/startup.sh"]
