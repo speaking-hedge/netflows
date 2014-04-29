@@ -1,0 +1,34 @@
+needed packages
+---------------
+
+docker.io
+bison
+flex
+cmake
+
+test environment
+----------------
+
+test/create_container.sh
+- creates test environment based on ubuntu 14.04
+- installs apache2, mysql, php5, sshd
+- configures services / passwords
+
+mysql: admin / 1234, port 3306
+sshd: root / 1234, port 22
+apache2: port 80
+
+test/run_container.sh
+- starts the container, exports ports of the servics to the local machine
+-- lynx localhost
+-- ssh root@localhost
+-- mysql -h localhost -u admin -p
+- some folders (eg. /var/www/html) are exported to test/mapped_folders/
+so you can easily exchange files between the container and the host
+
+test/provisioning.sh 
+- build the binaries and deploy them alongside with the files from
+services/ to the webserver
+
+test/clear_containers.sh
+- whipe out all containers and images. use with care!
