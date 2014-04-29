@@ -9,6 +9,7 @@ EXTERNALPROJECT_ADD(libpcap.a
 	INSTALL_COMMAND sh -c "cp libpcap.a ${CMAKE_CURRENT_BINARY_DIR}"
 )
 
+INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/lib/${LIBPCAP_SRC}/)
 ADD_EXECUTABLE(packet-processor-static pp.c libc_wrapper.c)
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--wrap=memcpy -static-libgcc")
 
