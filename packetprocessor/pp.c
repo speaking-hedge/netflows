@@ -1,27 +1,59 @@
-#include <stdio.h>
-#include <pcap.h>
+#include "pp.h"
 
 int main(int argc, char **argv) {
-	
-	pcap_t *hdl = NULL; 
-    char errbuf[PCAP_ERRBUF_SIZE] = {'\0'};
-    struct pcap_pkthdr hdr;
-    const u_char *pkt = NULL;
-    int i = 0;
     
-    if (argc < 2) {
-		fprintf(stderr, "missing parameter pcap-file - abort.\n");
-		return -1;
+    struct option options[] = {
+		{"help", 0, NULL, 'h'},
+		{"check", 1, NULL, 'c'},
+		{NULL, 0, NULL, 0}
+	};
+    
+    while (1) {
+		switch(getopt_long(argc, argv, "hc:", options, NULL)) {
+			case -1:
+				break;
+			case '?':
+				return -1;
+			case 'h':
+				usage();
+				return 0;
+			break;
+			case 'c':
+				return check_file(optarg);
+			break;
+			default:
+				abort();
+		}
 	}
     
-    if (!(hdl = pcap_open_offline(argv[1], errbuf))) { 
-		fprintf(stderr,"Couldn't open pcap file %s: %s\n", argv[1], errbuf); 
-		return -2; 
-    } 
-
-    while (pkt = pcap_next(hdl,&hdr)) { 
-		printf("%04d - ts:%08lu ms size:%d byte (full cap:%s)\n", i, (hdr.ts.tv_sec * 1000) + (hdr.ts.tv_usec / 1000), hdr.caplen, hdr.caplen == hdr.len ?"yes":"no");
-		i++;
-	}
 	return 0;
+}
+
+/**
+ * @brief check if given name points to a file we can open as a pcap(ng)
+ * @param name of the file to test
+ * @retval (0) if file is valid
+ * @retval (1) if file is invalid
+ */
+int check_file(char *name) {
+	
+	char errbuf[PCAP_ERRBUF_SIZE] = {'\0'};
+	pcap_t *handle = pcap_open_offline(name, errbuf);
+	if (!handle) { 
+		return 1; 
+    }
+    pcap_close(handle);
+    
+	return 0;
+}
+
+/**
+ * @brief: output programs help text
+ */
+void usage(void) {
+	printf("Usage: pp [OPTION] FILE\n");
+	printf("processes network packets gathered from sniffed traffic to generate\n");
+	printf("flow related statistics\n\n");
+	printf("-c --check        check if given file is a valid pcap(ng) file\n");
+	printf("-h --help         show help\n");
 }
