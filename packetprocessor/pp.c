@@ -7,11 +7,14 @@ int main(int argc, char **argv) {
 		{"check", 1, NULL, 'c'},
 		{NULL, 0, NULL, 0}
 	};
+	int i = 0;
     
-    while (1) {
-		switch(getopt_long(argc, argv, "hc:", options, NULL)) {
-			case -1:
-				break;
+    while(1) {
+		i = getopt_long(argc, argv, "hvc:", options, NULL);
+		if (i == -1)
+			break;
+			
+		switch(i) {
 			case '?':
 				return -1;
 			case 'h':
