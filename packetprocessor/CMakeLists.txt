@@ -1,4 +1,5 @@
 set(LIBPCAP_SRC libpcap-1.5.3)
+EXECUTE_PROCESS(COMMAND sh -c "git describe --abbrev=6 --dirty --always | tr -d '\n'" OUTPUT_VARIABLE GIT_SHA)
 
 # build libpcap.a if needed
 include(ExternalProject)
@@ -10,6 +11,7 @@ EXTERNALPROJECT_ADD(libpcap.a
 )
 
 INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/lib/${LIBPCAP_SRC}/)
+SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DPPSHA=\\\"${GIT_SHA}\\\" -DPPCOMMITS=${REPO_COMMIT_COUNT}")
 ADD_EXECUTABLE(packet-processor-static pp.c libc_wrapper.c)
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--wrap=memcpy -static-libgcc")
 
