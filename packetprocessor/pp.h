@@ -19,7 +19,7 @@ enum pp_db_types {
 	PP_DB_UNDEFINED
 };
 
-const char *pp_db_type_names[PP_DB_EOL] = {
+static char *pp_db_type_names[PP_DB_EOL] = {
 	[PP_DB_MYSQL] = "mysql"
 };
 
