@@ -23,3 +23,5 @@ TARGET_LINK_LIBRARIES(packet-processor-static pcap)
 
 # trigger build if needed
 ADD_DEPENDENCIES(packet-processor-static libpcap.a)
+
+add_subdirectory(test)

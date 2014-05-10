@@ -1,0 +1,25 @@
+#include <pp.h>
+
+static struct pcap_test_file {
+	char *fname;
+	unsigned char is_bad;
+} pcap_test_files[] = {
+	{"testcaps/small.pcap", 0},
+	{"testcaps/small.pcapng", 0},
+	{"testcaps/invalid_name", 1},
+	{"testcaps/corrupted.pcap", 1},
+	{"testcaps/iamtext", 1},
+	{0, 0},
+};
+
+#suite commandline
+
+#test test_case_01
+
+	struct pp_config pp_ctx;
+	int i = 0;
+
+	for (i = 0; pcap_test_files[i].fname != NULL; i++) {
+		pp_ctx.packet_source = pcap_test_files[i].fname;
+		ck_assert_msg( pcap_test_files[i].is_bad == (check_file(&pp_ctx) == 0?0:1), "check_file() failed on file %s", pp_ctx.packet_source);
+	}
