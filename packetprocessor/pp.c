@@ -9,17 +9,18 @@ int main(int argc, char **argv) {
 	struct pp_config pp_ctx;
 	int rc = 0;
 
-	signal(SIGINT, &catch);
-	signal(SIGQUIT, &catch);
-	signal(SIGTERM, &catch);
+	signal(SIGINT, &catch_term);
+	signal(SIGQUIT, &catch_term);
+	signal(SIGTERM, &catch_term);
 
-	signal(SIGUSR1, &dump_state);
+	signal(SIGUSR1, &catch_dump);
 
 	parse_cmd_line(argc, argv, &pp_ctx);
 
 	/* sanity checks */
-	if (pp_ctx.pp_action == PP_ACTION_UNDEFINED) {
+	if (pp_ctx.action == PP_ACTION_UNDEFINED) {
 		fprintf(stderr, "no action specified. abort.\n");
+		cleanup(&pp_ctx);
 		return 1;
 	}
 
@@ -29,15 +30,20 @@ int main(int argc, char **argv) {
 		pp_ctx.db_config.schema == 0 ||
 		pp_ctx.db_config.port == -1)) {
 		fprintf(stderr, "missing database attributes. at least host, user, schema and port are needed. abort.\n");
+		cleanup(&pp_ctx);
 		return 1;
 	}
 
-	switch(pp_ctx.pp_action) {
+	switch(pp_ctx.action) {
 		case PP_ACTION_CHECK:
 			rc = check_file(&pp_ctx);
 			break;
 		case PP_ACTION_ANALYSE_FILE:
-			/* TODO */
+			if(check_file(&pp_ctx)) {
+				rc = 1;
+			} else {
+				/* TODO */
+			}
 			break;
 		case PP_ACTION_ANALYSE_LIVE:
 			run = 1;
@@ -45,10 +51,12 @@ int main(int argc, char **argv) {
 				/* TODO */
 			};
 			break;
+		default:
+			fprintf(stderr, "unknown action specified. abort.\n");
+			rc = 1;
 	}
 
-    if (pp_ctx.packet_source)
-		free(pp_ctx.packet_source);
+	cleanup(&pp_ctx);
 
 	return rc;
 }
@@ -74,20 +82,22 @@ void parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
 		{"db-password", 1, NULL, 'P'},
 		{"db-port", 1, NULL, 'p'},
 		{"db-schema", 1, NULL, 's'},
+		{"output", 1, NULL, 'o'},
 		{NULL, 0, NULL, 0}
 	};
 	int opt = 0, i = 0;
-	char *endptr;
+	char *endptr = NULL;
 
-	pp_ctx->pp_action = PP_ACTION_UNDEFINED;
+	pp_ctx->action = PP_ACTION_UNDEFINED;
 	pp_ctx->packet_source = NULL;
+	pp_ctx->output_file = NULL;
 	pp_ctx->output_format = PP_OUTPUT_UNDEFINED;
 	memset(&pp_ctx->db_config, 0, sizeof(pp_ctx->db_config));
 	pp_ctx->db_config.port = -1;
 	pp_ctx->db_config.type = PP_DB_UNDEFINED;
 
     while(1) {
-		opt = getopt_long(argc, argv, "hva:l:c:yd:H:u:P:p:s:", options, NULL);
+		opt = getopt_long(argc, argv, "hva:l:c:yd:H:u:P:p:s:o:", options, NULL);
 		if (opt == -1)
 			break;
 			
@@ -156,9 +166,33 @@ void parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
 					exit(1);
 				}
 				break;
+			case 'o': /* output file */
+				free(pp_ctx->output_file);
+				if(!(pp_ctx->output_file = strdup(optarg))) {
+					fprintf(stderr, "failed to alloc memory for output filename. abort.\n");
+					exit(1);
+				}
+				break;
 			default:
 				abort();
 		}
+	}
+}
+
+/**
+ * @brief cleanup the pp context
+ * @param pp_ctx to clean up
+ */
+void cleanup(struct pp_config *pp_ctx) {
+
+	if (pp_ctx->packet_source) {
+		free(pp_ctx->packet_source);
+		pp_ctx->packet_source = NULL;
+	}
+
+	if (pp_ctx->output_file) {
+		free(pp_ctx->output_file);
+		pp_ctx->output_file = NULL;
 	}
 }
 
@@ -184,7 +218,7 @@ int check_file(struct pp_config *pp_ctx) {
  * @brief handle signals requesting a dump of the current state
  * @param signal to handle
  */
-void dump_state(int signal) {
+void catch_dump(int signal) {
 	printf("dump state\n");
 }
 
@@ -192,7 +226,7 @@ void dump_state(int signal) {
  * @brief handle signals requesting program to exit
  * @param signal to handle
  */
-void catch(int signal) {
+void catch_term(int signal) {
 	printf("shut down\n");
 	run = 0;
 }
@@ -204,15 +238,14 @@ void catch(int signal) {
  * @param packet_source points to a file or a network interface name
  */
 static void set_action(struct pp_config *pp_ctx, enum pp_action action, char *packet_source) {
-	if (pp_ctx->pp_action != PP_ACTION_UNDEFINED && pp_ctx->pp_action != action) {
+	if (pp_ctx->action != PP_ACTION_UNDEFINED && pp_ctx->action != action) {
 		fprintf(stderr, "more then one action requested but only one at a time supported. abort.\n");
 		exit(1);
 	}
-	pp_ctx->pp_action = action;
-	if(pp_ctx->packet_source)
-		free(pp_ctx->packet_source);
+	pp_ctx->action = action;
+	free(pp_ctx->packet_source);
 	if (!(pp_ctx->packet_source = strdup(optarg))) {
-		fprintf(stderr, "failed to alloc memory for filename. abort.\n");
+		fprintf(stderr, "failed to alloc memory while setting action. abort.\n");
 		exit(1);
 	}
 }
@@ -245,6 +278,10 @@ void usage(void) {
 	printf("-h --help               show help\n");
 	printf("\n");
 	printf("-y --yaml               set output format yaml (default)\n");
+	printf("-o --output <file>      output to given file (default: stdout)\n");
+	printf("                        for dumps requested while the analyser\n");
+	printf("                        is still running, an increasing nummber is\n");
+	printf("                        appended to the filename\n");
 	printf("-d --database <type>    output data to database of given type\n");
 	printf("                        currently supported databases:\n");
 	for (i = 0; i < PP_DB_EOL; i++) {

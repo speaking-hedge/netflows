@@ -42,9 +42,10 @@ struct pp_config {
 		PP_ACTION_ANALYSE_FILE,
 		PP_ACTION_ANALYSE_LIVE,
 		PP_ACTION_CHECK
-	} pp_action;
+	} action;
 
 	char *packet_source;
+	char *output_file;
 
 	enum {
 		PP_OUTPUT_BASE = 0,
@@ -58,10 +59,11 @@ struct pp_config {
 };
 
 void parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx);
+void cleanup(struct pp_config *pp_ctx);
 int check_file(struct pp_config *pp_ctx);
 
-void dump_state(int signal);
-void catch(int signal);
+void catch_dump(int signal);
+void catch_term(int signal);
 
 void usage(void);
 void version(void);
