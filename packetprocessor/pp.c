@@ -2,25 +2,25 @@
 
 volatile int run;
 
-static void set_action(struct pp_config *pp_ctx, enum pp_action action, char *packet_source);
+static void __pp_set_action(struct pp_config *pp_ctx, enum pp_action action, char *packet_source);
 
 int main(int argc, char **argv) {
 
 	struct pp_config pp_ctx;
 	int rc = 0;
 
-	signal(SIGINT, &catch_term);
-	signal(SIGQUIT, &catch_term);
-	signal(SIGTERM, &catch_term);
+	signal(SIGINT, &pp_catch_term);
+	signal(SIGQUIT, &pp_catch_term);
+	signal(SIGTERM, &pp_catch_term);
 
-	signal(SIGUSR1, &catch_dump);
+	signal(SIGUSR1, &pp_catch_dump);
 
-	parse_cmd_line(argc, argv, &pp_ctx);
+	pp_parse_cmd_line(argc, argv, &pp_ctx);
 
 	/* sanity checks */
 	if (pp_ctx.action == PP_ACTION_UNDEFINED) {
 		fprintf(stderr, "no action specified. abort.\n");
-		cleanup(&pp_ctx);
+		pp_cleanup_ctx(&pp_ctx);
 		return 1;
 	}
 
@@ -30,16 +30,16 @@ int main(int argc, char **argv) {
 		pp_ctx.db_config.schema == 0 ||
 		pp_ctx.db_config.port == -1)) {
 		fprintf(stderr, "missing database attributes. at least host, user, schema and port are needed. abort.\n");
-		cleanup(&pp_ctx);
+		pp_cleanup_ctx(&pp_ctx);
 		return 1;
 	}
 
 	switch(pp_ctx.action) {
 		case PP_ACTION_CHECK:
-			rc = check_file(&pp_ctx);
+			rc = pp_check_file(&pp_ctx);
 			break;
 		case PP_ACTION_ANALYSE_FILE:
-			if(check_file(&pp_ctx)) {
+			if(pp_pcap_open(&pp_ctx)) {
 				rc = 1;
 			} else {
 				/* TODO */
@@ -56,7 +56,7 @@ int main(int argc, char **argv) {
 			rc = 1;
 	}
 
-	cleanup(&pp_ctx);
+	pp_cleanup_ctx(&pp_ctx);
 
 	return rc;
 }
@@ -67,7 +67,7 @@ int main(int argc, char **argv) {
  * @param argv as supplied to main
  * @param ctx that holds the pp configuration
  */
-void parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
+void pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
 
 	struct option options[] = {
 		{"help", 0, NULL, 'h'},
@@ -88,13 +88,7 @@ void parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
 	int opt = 0, i = 0;
 	char *endptr = NULL;
 
-	pp_ctx->action = PP_ACTION_UNDEFINED;
-	pp_ctx->packet_source = NULL;
-	pp_ctx->output_file = NULL;
-	pp_ctx->output_format = PP_OUTPUT_UNDEFINED;
-	memset(&pp_ctx->db_config, 0, sizeof(pp_ctx->db_config));
-	pp_ctx->db_config.port = -1;
-	pp_ctx->db_config.type = PP_DB_UNDEFINED;
+	pp_init_ctx(pp_ctx);
 
     while(1) {
 		opt = getopt_long(argc, argv, "hva:l:c:yd:H:u:P:p:s:o:", options, NULL);
@@ -105,20 +99,20 @@ void parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
 			case '?':
 				exit(1);
 			case 'h':
-				usage();
+				pp_usage();
 				exit(0);
 			case 'v':
-				version();
+				pp_version();
 				exit(0);
 			break;
 			case 'a':
-				set_action(pp_ctx, PP_ACTION_ANALYSE_FILE, optarg);
+				__pp_set_action(pp_ctx, PP_ACTION_ANALYSE_FILE, optarg);
 				break;
 			case 'l':
-				set_action(pp_ctx, PP_ACTION_ANALYSE_LIVE, optarg);
+				__pp_set_action(pp_ctx, PP_ACTION_ANALYSE_LIVE, optarg);
 				break;
 			case 'c':
-				set_action(pp_ctx, PP_ACTION_CHECK, optarg);
+				__pp_set_action(pp_ctx, PP_ACTION_CHECK, optarg);
 				break;
 			case 'y':
 				if (pp_ctx->output_format != PP_OUTPUT_UNDEFINED && pp_ctx->output_format != PP_OUTPUT_YAML) {
@@ -180,26 +174,10 @@ void parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
 }
 
 /**
- * @brief cleanup the pp context
- * @param pp_ctx to clean up
- */
-void cleanup(struct pp_config *pp_ctx) {
-
-	if (pp_ctx->packet_source) {
-		free(pp_ctx->packet_source);
-		pp_ctx->packet_source = NULL;
-	}
-
-	if (pp_ctx->output_file) {
-		free(pp_ctx->output_file);
-		pp_ctx->output_file = NULL;
-	}
-}
-/**
  * @brief handle signals requesting a dump of the current state
  * @param signal to handle
  */
-void catch_dump(int signal) {
+void pp_catch_dump(int signal) {
 	printf("dump state\n");
 }
 
@@ -207,7 +185,7 @@ void catch_dump(int signal) {
  * @brief handle signals requesting program to exit
  * @param signal to handle
  */
-void catch_term(int signal) {
+void pp_catch_term(int signal) {
 	printf("shut down\n");
 	run = 0;
 }
@@ -218,7 +196,7 @@ void catch_term(int signal) {
  * @param action that is requested
  * @param packet_source points to a file or a network interface name
  */
-static void set_action(struct pp_config *pp_ctx, enum pp_action action, char *packet_source) {
+static void __pp_set_action(struct pp_config *pp_ctx, enum pp_action action, char *packet_source) {
 	if (pp_ctx->action != PP_ACTION_UNDEFINED && pp_ctx->action != action) {
 		fprintf(stderr, "more then one action requested but only one at a time supported. abort.\n");
 		exit(1);
@@ -234,7 +212,7 @@ static void set_action(struct pp_config *pp_ctx, enum pp_action action, char *pa
 /**
  * @brief: show program version
  */
-void version(void) {
+void pp_version(void) {
 #ifdef PPSHA
 	printf("version %s (build on %s)\n", PPVERSION, PPSHA);
 #else
@@ -245,7 +223,7 @@ void version(void) {
 /**
  * @brief: output programs help text
  */
-void usage(void) {
+void pp_usage(void) {
 	int i;
 	printf("Usage: pp [OPTION] FILE\n");
 	printf("processes network packets gathered from sniffed traffic to generate\n");

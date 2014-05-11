@@ -47,6 +47,8 @@ struct pp_config {
 	char *packet_source;
 	char *output_file;
 
+	pcap_t *pcap_handle;
+
 	enum {
 		PP_OUTPUT_BASE = 0,
 		PP_OUTPUT_YAML = 0,
@@ -58,14 +60,19 @@ struct pp_config {
 	struct pp_db_connection db_config;
 };
 
-void parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx);
-void cleanup(struct pp_config *pp_ctx);
-int check_file(struct pp_config *pp_ctx);
+void pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx);
 
-void catch_dump(int signal);
-void catch_term(int signal);
+void pp_init_ctx(struct pp_config *pp_ctx);
+void pp_cleanup_ctx(struct pp_config *pp_ctx);
+int pp_check_file(struct pp_config *pp_ctx);
 
-void usage(void);
-void version(void);
+int pp_pcap_open(struct pp_config *pp_ctx);
+int pp_pcap_close(struct pp_config *pp_ctx);
+
+void pp_catch_dump(int signal);
+void pp_catch_term(int signal);
+
+void pp_usage(void);
+void pp_version(void);
 
 #endif /* __PP_H */
