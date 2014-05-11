@@ -1,8 +1,11 @@
 #include "pp.h"
 
 volatile int run;
+volatile int dump;
 
 static void __pp_set_action(struct pp_config *pp_ctx, enum pp_action action, char *packet_source);
+static int __pp_run_live(struct pp_config *pp_ctx);
+static void packet_handler(struct pp_config *pp_ctx, uint8_t *data, uint16_t len, uint64_t timestamp);
 
 int main(int argc, char **argv) {
 
@@ -14,6 +17,8 @@ int main(int argc, char **argv) {
 	signal(SIGTERM, &pp_catch_term);
 
 	signal(SIGUSR1, &pp_catch_dump);
+
+	pp_init_ctx(&pp_ctx, &packet_handler);
 
 	pp_parse_cmd_line(argc, argv, &pp_ctx);
 
@@ -46,10 +51,7 @@ int main(int argc, char **argv) {
 			}
 			break;
 		case PP_ACTION_ANALYSE_LIVE:
-			run = 1;
-			while(run) {
-				/* TODO */
-			};
+			rc = __pp_run_live(&pp_ctx);
 			break;
 		default:
 			fprintf(stderr, "unknown action specified. abort.\n");
@@ -57,6 +59,46 @@ int main(int argc, char **argv) {
 	}
 
 	pp_cleanup_ctx(&pp_ctx);
+
+	return rc;
+}
+
+/**
+ * @brief central packet handler callback, invokes analysers
+ * @param pp_ctx holds the config of pp
+ * @param data of the packet
+ * @param len number of bytes in the packet
+ * @param timestamp the packet was received
+ */
+static void packet_handler(struct pp_config *pp_ctx,
+							uint8_t *data,
+							uint16_t len,
+							uint64_t timestamp) {
+	printf("got a packet of size %04d@%" PRIu64 "\n", len, timestamp);
+}
+
+static int __pp_run_live(struct pp_config *pp_ctx) {
+
+	int rc = 0;
+
+	switch(pp_live_init()) {
+		case EPERM:
+			fprintf(stderr, "invalid permissions - failed to init live capture. abort.\n");
+			return 1;
+		case EINVAL:
+			fprintf(stderr, "invalid configuration - failed to init live capture. abort.\n");
+			return 1;
+		case EBADF:
+			fprintf(stderr, "error during network setup - failed to init live capture. abort.\n");
+			return 1;
+		case ENODEV:
+			fprintf(stderr, "failed to access interface %s - failed to init live capture. abort.\n", pp_ctx->packet_source);
+			return 1;
+	}
+
+	run = 1;
+	rc = pp_live_capture(pp_ctx, &run, &dump);
+	pp_live_shutdown(pp_ctx);
 
 	return rc;
 }
@@ -87,8 +129,6 @@ void pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
 	};
 	int opt = 0, i = 0;
 	char *endptr = NULL;
-
-	pp_init_ctx(pp_ctx);
 
     while(1) {
 		opt = getopt_long(argc, argv, "hva:l:c:yd:H:u:P:p:s:o:", options, NULL);
@@ -178,7 +218,7 @@ void pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
  * @param signal to handle
  */
 void pp_catch_dump(int signal) {
-	printf("dump state\n");
+	dump = 1;
 }
 
 /**
@@ -186,7 +226,6 @@ void pp_catch_dump(int signal) {
  * @param signal to handle
  */
 void pp_catch_term(int signal) {
-	printf("shut down\n");
 	run = 0;
 }
 
