@@ -75,6 +75,33 @@ static void packet_handler(struct pp_config *pp_ctx,
 							uint16_t len,
 							uint64_t timestamp) {
 	printf("got a packet of size %04d@%" PRIu64 "\n", len, timestamp);
+
+	struct ether_header *eptr;
+	int i;
+	u_char *ptr;
+
+	eptr = (struct ether_header *) data;
+
+	if (ntohs (eptr->ether_type) == ETHERTYPE_IP) {
+		ptr = eptr->ether_dhost;
+		i = ETHER_ADDR_LEN;
+		printf(" Destination Address:  ");
+		do {
+			printf("%s%x",(i == ETHER_ADDR_LEN) ? " " : ":", *ptr++);
+		} while (--i > 0);
+		printf("\n");
+
+		ptr = eptr->ether_shost;
+		i = ETHER_ADDR_LEN;
+		printf(" Source Address:  ");
+		do {
+			printf("%s%x",(i == ETHER_ADDR_LEN) ? " " : ":", *ptr++);
+		} while (--i > 0);
+		printf("\n");
+	} else {
+		printf("Ethernet type %x not IP", ntohs(eptr->ether_type));
+	}
+
 }
 
 static int __pp_run_live(struct pp_config *pp_ctx) {
