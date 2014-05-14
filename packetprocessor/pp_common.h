@@ -57,6 +57,12 @@ struct pp_config {
 		PP_OUTPUT_EOD,
 		PP_OUTPUT_UNDEFINED
 	} output_format;
+	
+	enum {
+		PP_PROC_OPT_NONE = 0,
+		PP_PROC_OPT_CREATE_HASH = 1<<0,
+		PP_PROC_OPT_EOL
+	} processing_options;
 
 	struct pp_db_connection db_config;
 };

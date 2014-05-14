@@ -15,6 +15,7 @@ void pp_init_ctx(struct pp_config *pp_ctx, void (*packet_handler)(struct pp_conf
 	pp_ctx->packet_handler_cb = packet_handler;
 
 	pp_ctx->output_format = PP_OUTPUT_UNDEFINED;
+	pp_ctx->processing_options = PP_PROC_OPT_NONE;
 
 	memset(&pp_ctx->db_config, 0, sizeof(pp_ctx->db_config));
 	pp_ctx->db_config.port = -1;
@@ -62,7 +63,17 @@ void pp_dump_state(struct pp_config *pp_ctx) {
 int pp_check_file(struct pp_config *pp_ctx) {
 
 	int rc = pp_pcap_open(pp_ctx);
+	char *hash = NULL;
 	pp_pcap_close(pp_ctx);
+
+	if (!rc && (pp_ctx->processing_options & PP_PROC_OPT_CREATE_HASH)) {
+		if(pp_create_hash(pp_ctx, &hash)) {
+			rc = 1;
+		} else {
+			printf("%s\n", hash);
+			free(hash);
+		}
+	}
 
 	return rc;
 }
@@ -233,4 +244,85 @@ static int __pp_live_check_perm(void) {
 	}
 	cap_free(capp);
 	return 1;
+}
+
+/**
+ * @brief create sha256 hash over given file
+ * if the file size <= 5120 the whole file is used to generate the hash
+ * if the file size is > 5120, 10 equal distributed probes of 512 bytes
+ * will be used to calculate the hash
+ * @param pp_ctx holds the config of pp
+ * @param [out] hash - where to store the ptr to the created hash
+ * @note the caller takes the ownership of the hash string and must
+ * free the memory used to store the string
+ * @retval 0 if hash was created
+ * @retval 1 on error
+ */
+int pp_create_hash(struct pp_config *pp_ctx, char **hash) {
+
+	gcry_md_hd_t hd;
+	FILE *fh = NULL;
+	size_t fsize = 0;
+	int i = 0;
+	uint8_t buf[512], *hash_bin = NULL;
+	char *hash_str = NULL;
+	int gap = 0;
+
+	if ( !(fh = fopen(pp_ctx->packet_source, "r"))) {
+		return 1;
+	}
+
+	if (fseek(fh, 0, SEEK_END)) {
+		fclose(fh);
+		return 1;
+	}
+	fsize = ftell(fh);
+	gap = (fsize - 5120) / 9;
+
+	if (GPG_ERR_NO_ERROR != gcry_md_open(&hd, GCRY_MD_SHA256, 0)) {
+		return 1;
+	}
+
+	if (fsize <= 5120) {
+		/* suck in complete file */
+		if (!fseek(fh, 0, SEEK_SET)) {
+			while(1) {
+				i = fread(buf, 1, 512, fh);
+				if (i > 0) {
+					gcry_md_write (hd, (void*)buf, i);
+				} else {
+					break;
+				}
+			}
+		}
+	} else {
+		/* take some probes @ different places of the file */
+		for ( i = 0; i < 10; i++) {
+			if (fseek(fh, (i*512 +  i*gap), SEEK_SET)) {
+				fclose(fh);
+				return 1;
+			}
+
+			if (512 != fread(buf, 1, 512, fh)) {
+				fclose(fh);
+				return 1;
+			}
+			gcry_md_write (hd, (void*)buf, 512);
+		}
+	}
+
+	if (!(hash_str = calloc(1, 65))) {
+		gcry_md_close(hd);
+		return 1;
+	}
+
+	hash_bin = gcry_md_read (hd, GCRY_MD_SHA256);
+	for (i = 0; i < gcry_md_get_algo_dlen(GCRY_MD_SHA256); i++) {
+		sprintf(&hash_str[i*2],"%02x", hash_bin[i]);
+	}
+	*hash = hash_str;
+
+	gcry_md_close(hd);
+
+	return 0;
 }

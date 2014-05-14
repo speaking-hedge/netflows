@@ -125,13 +125,14 @@ void pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
 		{"db-port", 1, NULL, 'p'},
 		{"db-schema", 1, NULL, 's'},
 		{"output", 1, NULL, 'o'},
+		{"gen-job-id", 0, NULL, 'j'},
 		{NULL, 0, NULL, 0}
 	};
 	int opt = 0, i = 0;
 	char *endptr = NULL;
 
     while(1) {
-		opt = getopt_long(argc, argv, "hva:l:c:yd:H:u:P:p:s:o:", options, NULL);
+		opt = getopt_long(argc, argv, "hva:l:c:yd:H:u:P:p:s:o:j", options, NULL);
 		if (opt == -1)
 			break;
 			
@@ -207,6 +208,9 @@ void pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
 					exit(1);
 				}
 				break;
+			case 'j': /* create hash */
+				pp_ctx->processing_options |= PP_PROC_OPT_CREATE_HASH;
+				break;
 			default:
 				abort();
 		}
@@ -269,6 +273,8 @@ void pp_usage(void) {
 	printf("flow related statistics\n\n");
 	printf("-c --check <file>       do not process the file, just check if \n");
 	printf("                        given file is a valid pcap(ng) file\n");
+	printf("-j --gen-job-id         generate a unique job-id (sha256) based\n");
+	printf("                        on given file\n");
 	printf("-a --analyse <file>     analyse given pcap(ng) file\n");
 	printf("-l --live-analyse <if>  capture and analyse traffic from given interface\n");
 	printf("\n");

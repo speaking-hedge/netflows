@@ -8,6 +8,7 @@
 #include <net/if.h>
 #include <poll.h>
 #include <time.h>
+#include <gcrypt.h>
 
 #include <pp_common.h>
 
