@@ -3,56 +3,81 @@
 
 #include <netinet/in.h>
 #include <netinet/if_ether.h>
+#include <netinet/tcp.h>
+#include <netinet/udp.h>
 #include <stdio.h>
 #include <inttypes.h>
 
+/*
+ * Structs
+ */
+
+/* packet information */
 struct packet {
-	u_int64_t       timestamp;      /* timestamp */
-	char            *src_host;       /* mac address of source, len = ETHER_ADDR_LEN */
-	char            *dst_host;       /* mac address of destination*/
-	u_int8_t        version;         /* protocol version          */
-	u_int16_t       length;          /* packet length             */
-	u_int8_t        protocol;        /* package protocol          */
-	struct in_addr  ip_src,
-	                ip_dst;          /* source and dest address   */
-	struct in6_addr ip6_src,
-	                ip6_dst;         /* ip adresses               */
+	u_int64_t       timestamp; // time stamp
+	u_int8_t        version;   // version
+	u_int16_t       length;    // packet size
+	u_int8_t        protocol;  // protocol
+
+	struct in_addr  src_ip,    // source ip address
+	                dst_ip;    // destination ip address
+	struct in6_addr src_ip6,   // source ipv6 address // TODO: check if in6_addr can hold ipv4 addresses
+	                dst_ip6;   // destination ipv6 address
+	in_port_t       src_port,  // source port
+	                dst_port;  // destination port
 };
 
+/* TCP Header */
+struct header_tcp {
+	in_port_t src_port;        // source port // short because of byte order
+	in_port_t dst_port;        // destination port
+	u_int32_t seq_nr;          // sequence number
+	u_int32_t ack_nr;          // acknowledge number
+	u_int16_t flags;           // data offset / control flags
+	u_int16_t window;          // receive window size
+	u_int16_t checksum;        // checksum
+	u_int16_t urgent;          // urgent pointer
+};
+
+/* IPv6 header */
 struct header_ipv6 {
-	u_int32_t       ip_vhl;          /* version, traffic class, flow label */
-	u_int16_t       ip_pll;          /* payload length            */
-	u_int8_t        ip_nxthdr;       /* next header               */
-	u_int8_t        ip_ttl;          /* hop limit aka ttl         */
-	struct in6_addr ip_src, ip_dst;  /* ip adresses               */
+	u_int32_t       version;   // version, traffic class, flow label
+	u_int16_t       payload;   // payload length
+	u_int8_t        nexthdr;   // next header
+	u_int8_t        ttl;       // time to live
+	struct in6_addr src_ip,    // source ip address
+	                dst_ip;    // destination ip address
 };
 
+/* IPv4 header */
 struct header_ipv4 {
-	u_int8_t        ip_vhl;          /* header length, version    */
-#define IP_V(ip)    (((ip)->ip_vhl & 0xf0) >> 4)
-#define IP_HL(ip)   ((ip)->ip_vhl & 0x0f)
-	u_int8_t        ip_tos;          /* type of service           */
-	u_int16_t       ip_len;          /* total length              */
-	u_int16_t       ip_id;           /* identification            */
-	u_int16_t       ip_off;          /* fragment offset field     */
-#define IP_DF 0x4000                 /* dont fragment flag        */
-#define IP_MF 0x2000                 /* more fragments flag       */
-#define IP_OFFMASK 0x1fff            /* mask for fragmenting bits */
-	u_int8_t        ip_ttl;          /* time to live              */
-	u_int8_t        ip_p;            /* protocol                  */
-	u_int16_t       ip_sum;          /* checksum                  */
-	struct  in_addr ip_src, ip_dst;  /* source and dest address   */
+	u_int8_t        version;   // version / header length
+	u_int8_t        tos;       // type of service
+	u_int16_t       length;    // total length
+	u_int16_t       id;        // identification
+	u_int16_t       offset;    // flags / offset
+	u_int8_t        ttl;       // time to live
+	u_int8_t        protocol;  // protocol
+	u_int16_t       checksum;  // checksum
+	struct  in_addr src_ip,    // source ip address
+	                dst_ip;    // destination ip address
 };
 
+/*
+ * variables
+ */
 struct ether_header *eptr;
-int i;
-u_char *ptr;
-
 const struct header_ipv4* ip;
 const struct header_ipv6* ipv6;
-char ipsrc[INET6_ADDRSTRLEN];
-char ipdst[INET6_ADDRSTRLEN];
+const struct header_tcp* tcp;
 
+char ipsrc[INET6_ADDRSTRLEN]; // ip address string reserved
+char ipdst[INET6_ADDRSTRLEN]; // ip address string reserved
+
+/* 
+ * functions
+ */
 struct packet analyse(uint8_t *data, uint64_t timestamp);
+void print_packet_info(struct packet* packet);
 
 #endif
