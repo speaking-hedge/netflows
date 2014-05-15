@@ -20,21 +20,7 @@ int main(int argc, char **argv) {
 
 	pp_init_ctx(&pp_ctx, &packet_handler);
 
-	pp_parse_cmd_line(argc, argv, &pp_ctx);
-
-	/* sanity checks */
-	if (pp_ctx.action == PP_ACTION_UNDEFINED) {
-		fprintf(stderr, "no action specified. abort.\n");
-		pp_cleanup_ctx(&pp_ctx);
-		return 1;
-	}
-
-	if (pp_ctx.output_format == PP_OUTPUT_DATABASE &&
-		(pp_ctx.db_config.host[0] == 0 ||
-		pp_ctx.db_config.user == 0 ||
-		pp_ctx.db_config.schema == 0 ||
-		pp_ctx.db_config.port == -1)) {
-		fprintf(stderr, "missing database attributes. at least host, user, schema and port are needed. abort.\n");
+	if(pp_parse_cmd_line(argc, argv, &pp_ctx)) {
 		pp_cleanup_ctx(&pp_ctx);
 		return 1;
 	}
@@ -108,8 +94,10 @@ static int __pp_run_live(struct pp_config *pp_ctx) {
  * @param argc as supplied to main
  * @param argv as supplied to main
  * @param ctx that holds the pp configuration
+ * @retval 0 on success
+ * @retval 1 on error
  */
-void pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
+int pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
 
 	struct option options[] = {
 		{"help", 0, NULL, 'h'},
@@ -215,6 +203,23 @@ void pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
 				abort();
 		}
 	}
+	
+	/* sanity checks */
+	if (pp_ctx->action == PP_ACTION_UNDEFINED) {
+		fprintf(stderr, "no action specified. abort.\n");
+		return 1;
+	}
+
+	if (pp_ctx->output_format == PP_OUTPUT_DATABASE &&
+		(pp_ctx->db_config.host[0] == 0 ||
+		pp_ctx->db_config.user == 0 ||
+		pp_ctx->db_config.schema == 0 ||
+		pp_ctx->db_config.port == -1)) {
+		fprintf(stderr, "missing database attributes. at least host, user, schema and port are needed. abort.\n");
+		return 1;
+	}
+	
+	return 0;
 }
 
 /**

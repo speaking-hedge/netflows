@@ -6,7 +6,8 @@ bison
 flex
 cmake
 check
-libgcrypt20 / libgcrypt20-dev
+libgcrypt / libgcrypt-dev
+libcap2 / libcap-dev
 
 test environment
 ----------------

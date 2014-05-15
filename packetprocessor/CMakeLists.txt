@@ -19,7 +19,7 @@ set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--wrap=memcpy -static-
 # add libpcap
 ADD_LIBRARY(pcap STATIC IMPORTED)
 SET_TARGET_PROPERTIES(pcap PROPERTIES IMPORTED_LOCATION ${CMAKE_CURRENT_BINARY_DIR}/libpcap.a)
-TARGET_LINK_LIBRARIES(packet-processor-static pcap cap gcrypt)
+TARGET_LINK_LIBRARIES(packet-processor-static ${PROJECT_LINK_DEPENDENCIES})
 
 # trigger build if needed
 ADD_DEPENDENCIES(packet-processor-static libpcap.a)
