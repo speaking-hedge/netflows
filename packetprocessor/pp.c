@@ -74,51 +74,8 @@ static void packet_handler(struct pp_config *pp_ctx,
 							uint8_t *data,
 							uint16_t len,
 							uint64_t timestamp) {
-	printf("got a packet of size %04d@%" PRIu64 "\n", len, timestamp);
-
-	struct ether_header *eptr;
-	int i;
-	u_char *ptr;
-
-	const struct nread_ip* ip;
-	char ipsrc[INET_ADDRSTRLEN];
-	char ipdst[INET_ADDRSTRLEN];
-	
-	eptr = (struct ether_header *) data;
-
-	if (ntohs (eptr->ether_type) == ETHERTYPE_IP) {
-		ptr = eptr->ether_dhost;
-		i = ETHER_ADDR_LEN;
-		printf(" Destination Address:  ");
-		do {
-			printf("%s%x",(i == ETHER_ADDR_LEN) ? " " : ":", *ptr++);
-		} while (--i > 0);
-		printf("\n");
-
-		ptr = eptr->ether_shost;
-		i = ETHER_ADDR_LEN;
-		printf(" Source Address:  ");
-		do {
-			printf("%s%x",(i == ETHER_ADDR_LEN) ? " " : ":", *ptr++);
-		} while (--i > 0);
-		printf("\n");
-		
-		ip = (struct nread_ip*)(data + sizeof(struct ether_header));
-		printf("IP VERSION: %u   (4 is nice, 6 is not supported yet)\n", IP_V(ip));
-		printf("   Type of service: %u\n", ip->ip_tos);
-		printf("   Length: %u\n", ip->ip_len);
-		printf("   TTL: %u\n", ip->ip_ttl);
-		printf("   Protocol: %u   (6 is TCP, 17 is UDP)\n", ip->ip_p);
-		
-		inet_ntop(AF_INET, &(ip->ip_src), ipsrc, INET_ADDRSTRLEN);
-		inet_ntop(AF_INET, &(ip->ip_dst), ipdst, INET_ADDRSTRLEN);
-
-		printf("   Source IP: %s\n", ipsrc);
-		printf("   Destination IP: %s\n", ipdst);
-		
-	} else {
-		printf("Ethernet type %x not IP\n", ntohs(eptr->ether_type));
-	}
+	struct packet packet = analyse(data, timestamp);
+	print_packet_info(&packet);
 
 }
 
