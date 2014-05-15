@@ -12,7 +12,7 @@
 
 #define PPVERSION "0.1"
 
-void pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx);
+int pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx);
 
 void pp_catch_dump(int signal);
 void pp_catch_term(int signal);

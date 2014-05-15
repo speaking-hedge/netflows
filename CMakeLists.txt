@@ -5,12 +5,20 @@ project("netflows" C)
 # or run tests by calling ctest with --output-on-failure
 enable_testing()
 
-find_package(Check REQUIRED)
-include_directories(${CHECK_INCLUDE_DIRS})
+# ugly workaround - there is no recent check package in ubuntu 12.04
+# (package not found - even if installed)
+find_package(Check QUIET)
+if (CHECK_FOUND) 
+	include_directories(${CHECK_INCLUDE_DIRS})
+	set(CHECKMK_TOOL checkmk)
+else()
+	message("***going to use build-in checkmk tool***")
+	set(CHECKMK_TOOL ${PROJECT_SOURCE_DIR}/contrib/check/checkmk)
+endif()
 
 # just call build_check_tests() to generate tests for current source dir
 # may be called with additional source files as parameter
-set(PROJECT_LINK_DEPENDENCIES pcap cap gcrypt)
+set(PROJECT_LINK_DEPENDENCIES pcap cap gcrypt rt dbus-1 pthread)
 macro (build_check_tests)
 
 	file(GLOB_RECURSE TESTFILES "${CMAKE_CURRENT_SOURCE_DIR}" "*.check")
@@ -19,7 +27,7 @@ macro (build_check_tests)
 		get_filename_component(file_name ${TESTFILE} NAME_WE)
 		set(source_file_name ${file_name}.c)
 		execute_process(COMMAND touch ${CMAKE_CURRENT_BINARY_DIR}/${source_file_name})
-		execute_process(COMMAND sh -c "cat ${TESTFILE} | checkmk > ${CMAKE_CURRENT_BINARY_DIR}/${source_file_name}")
+		execute_process(COMMAND sh -c "cat ${TESTFILE} | ${CHECKMK_TOOL} > ${CMAKE_CURRENT_BINARY_DIR}/${source_file_name}")
 		set(ADD_SRC_FILES)
 		if (${ARGC} GREATER 0 )
 			foreach (ADD_SOURCE ${ARGV})

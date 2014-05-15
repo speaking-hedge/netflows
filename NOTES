@@ -5,7 +5,9 @@ docker.io
 bison
 flex
 cmake
-libgcrypt20 / libgcrypt20-dev
+check
+libgcrypt / libgcrypt-dev
+libcap2 / libcap-dev
 
 test environment
 ----------------
