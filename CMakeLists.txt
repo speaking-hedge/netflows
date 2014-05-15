@@ -10,7 +10,7 @@ include_directories(${CHECK_INCLUDE_DIRS})
 
 # just call build_check_tests() to generate tests for current source dir
 # may be called with additional source files as parameter
-set(PROJECT_LINK_DEPENDENCIES pcap cap)
+set(PROJECT_LINK_DEPENDENCIES pcap cap gcrypt)
 macro (build_check_tests)
 
 	file(GLOB_RECURSE TESTFILES "${CMAKE_CURRENT_SOURCE_DIR}" "*.check")
