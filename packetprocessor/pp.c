@@ -4,8 +4,9 @@ volatile int run;
 volatile int dump;
 
 static void __pp_set_action(struct pp_config *pp_ctx, enum pp_action action, char *packet_source);
+static int __pp_run_pcap_file(struct pp_config *pp_ctx);
 static int __pp_run_live(struct pp_config *pp_ctx);
-static void packet_handler(struct pp_config *pp_ctx, uint8_t *data, uint16_t len, uint64_t ts);
+static void __pp_packet_handler(struct pp_config *pp_ctx, uint8_t *data, uint16_t len, uint64_t ts);
 
 int main(int argc, char **argv) {
 
@@ -18,7 +19,7 @@ int main(int argc, char **argv) {
 
 	signal(SIGUSR1, &pp_catch_dump);
 
-	pp_init_ctx(&pp_ctx, &packet_handler);
+	pp_init_ctx(&pp_ctx, &__pp_packet_handler);
 
 	if(pp_parse_cmd_line(argc, argv, &pp_ctx)) {
 		pp_cleanup_ctx(&pp_ctx);
@@ -33,11 +34,12 @@ int main(int argc, char **argv) {
 			if(pp_pcap_open(&pp_ctx)) {
 				rc = 1;
 			} else {
-				/* TODO */
+				rc = __pp_run_pcap_file(&pp_ctx);
 			}
 			break;
 		case PP_ACTION_ANALYSE_LIVE:
 			rc = __pp_run_live(&pp_ctx);
+			pp_pcap_close(&pp_ctx);
 			break;
 		default:
 			fprintf(stderr, "unknown action specified. abort.\n");
@@ -56,7 +58,7 @@ int main(int argc, char **argv) {
  * @param len number of bytes in the packet
  * @param timestamp the packet was received
  */
-static void packet_handler(struct pp_config *pp_ctx,
+static void __pp_packet_handler(struct pp_config *pp_ctx,
 							uint8_t *data,
 							uint16_t len,
 							uint64_t ts) {
@@ -68,6 +70,19 @@ static void packet_handler(struct pp_config *pp_ctx,
 	} else {
 		printf(".");
 		fflush(stdout);
+	}
+}
+
+static int __pp_run_pcap_file(struct pp_config *pp_ctx) {
+
+	const uint8_t *pkt = NULL;
+	struct pcap_pkthdr hdr;
+
+	run = 1;
+	while (run && (pkt = pcap_next(pp_ctx->pcap_handle, &hdr))) {
+		if (hdr.caplen == hdr.len) {
+			pp_ctx->packet_handler_cb(pp_ctx, (uint8_t*)pkt, hdr.caplen, (hdr.ts.tv_sec * 1000) + (hdr.ts.tv_usec / 1000));
+		}
 	}
 }
 
