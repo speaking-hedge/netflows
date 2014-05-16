@@ -36,10 +36,10 @@ int main(int argc, char **argv) {
 			} else {
 				rc = __pp_run_pcap_file(&pp_ctx);
 			}
+			pp_pcap_close(&pp_ctx);
 			break;
 		case PP_ACTION_ANALYSE_LIVE:
 			rc = __pp_run_live(&pp_ctx);
-			pp_pcap_close(&pp_ctx);
 			break;
 		default:
 			fprintf(stderr, "unknown action specified. abort.\n");
