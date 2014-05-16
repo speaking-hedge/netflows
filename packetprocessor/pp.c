@@ -113,13 +113,6 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
 		{"analyse", 1, NULL, 'a'},
 		{"live-analyse", 1, NULL, 'l'},
 		{"check", 1, NULL, 'c'},
-		{"yaml", 0, NULL, 'y'},
-		{"database", 1, NULL, 'd'},
-		{"db-host", 1, NULL, 'H'},
-		{"db-user", 1, NULL, 'u'},
-		{"db-password", 1, NULL, 'P'},
-		{"db-port", 1, NULL, 'p'},
-		{"db-schema", 1, NULL, 's'},
 		{"output", 1, NULL, 'o'},
 		{"gen-job-id", 0, NULL, 'j'},
 		{NULL, 0, NULL, 0}
@@ -128,7 +121,7 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
 	char *endptr = NULL;
 
     while(1) {
-		opt = getopt_long(argc, argv, "hva:l:c:yd:H:u:P:p:s:o:j", options, NULL);
+		opt = getopt_long(argc, argv, "hva:l:c:o:j", options, NULL);
 		if (opt == -1)
 			break;
 			
@@ -151,52 +144,6 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
 			case 'c':
 				__pp_set_action(pp_ctx, PP_ACTION_CHECK, optarg);
 				break;
-			case 'y':
-				if (pp_ctx->output_format != PP_OUTPUT_UNDEFINED && pp_ctx->output_format != PP_OUTPUT_YAML) {
-					fprintf(stderr, "more then one output format selected but only one supported. abort.\n");
-					exit(1);
-				}
-				pp_ctx->output_format = PP_OUTPUT_YAML;
-				break;
-			case 'd':
-				if (pp_ctx->output_format != PP_OUTPUT_UNDEFINED && pp_ctx->output_format != PP_OUTPUT_DATABASE) {
-					fprintf(stderr, "more then one output format selected but only one at a time supported. abort.\n");
-					exit(1);
-				}
-				pp_ctx->output_format = PP_OUTPUT_DATABASE;
-				pp_ctx->db_config.type = PP_DB_UNDEFINED;
-				for (i = 0; i < PP_DB_EOL; i++) {
-					if (0 == strcasecmp(optarg, pp_db_type_names[i])) {
-						pp_ctx->db_config.type = i;
-						break;
-					}
-				}
-				if (pp_ctx->db_config.type == PP_DB_UNDEFINED) {
-					fprintf(stderr, "unknown database-type given. abort.\n");
-					exit(1);
-				}
-				break;
-			case 'H': /*host*/
-				strncpy(pp_ctx->db_config.host, optarg, PP_DB_CONNECTION_STRING_SIZE);
-				break;
-			case 'u': /*user*/
-				strncpy(pp_ctx->db_config.user, optarg, PP_DB_CONNECTION_STRING_SIZE);
-				break;
-			case 'P': /*password*/
-				strncpy(pp_ctx->db_config.password, optarg, PP_DB_CONNECTION_STRING_SIZE);
-				break;
-			case 's':/*schema*/
-				strncpy(pp_ctx->db_config.schema, optarg, PP_DB_CONNECTION_STRING_SIZE);
-				break;
-			case 'p': /*port*/
-				errno = 0;
-				pp_ctx->db_config.port = strtol(optarg, &endptr, 10);
-				if (endptr == optarg || errno == ERANGE || pp_ctx->db_config.port < 0 || pp_ctx->db_config.port > 65535) {
-
-					fprintf(stderr, "invalid database port given. must be in [0, 65535]. abort.\n");
-					exit(1);
-				}
-				break;
 			case 'o': /* output file */
 				free(pp_ctx->output_file);
 				if(!(pp_ctx->output_file = strdup(optarg))) {
@@ -211,22 +158,13 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
 				abort();
 		}
 	}
-	
+
 	/* sanity checks */
 	if (pp_ctx->action == PP_ACTION_UNDEFINED) {
 		fprintf(stderr, "no action specified. abort.\n");
 		return 1;
 	}
 
-	if (pp_ctx->output_format == PP_OUTPUT_DATABASE &&
-		(pp_ctx->db_config.host[0] == 0 ||
-		pp_ctx->db_config.user == 0 ||
-		pp_ctx->db_config.schema == 0 ||
-		pp_ctx->db_config.port == -1)) {
-		fprintf(stderr, "missing database attributes. at least host, user, schema and port are needed. abort.\n");
-		return 1;
-	}
-	
 	return 0;
 }
 
@@ -294,20 +232,8 @@ void pp_usage(void) {
 	printf("-v --version            show program version\n");
 	printf("-h --help               show help\n");
 	printf("\n");
-	printf("-y --yaml               set output format yaml (default)\n");
 	printf("-o --output <file>      output to given file (default: stdout)\n");
 	printf("                        for dumps requested while the analyser\n");
 	printf("                        is still running, an increasing nummber is\n");
 	printf("                        appended to the filename\n");
-	printf("-d --database <type>    output data to database of given type\n");
-	printf("                        currently supported databases:\n");
-	for (i = 0; i < PP_DB_EOL; i++) {
-		printf("                        %s\n", pp_db_type_names[i]);
-	}
-	printf("\n");
-	printf("-H --db-host <host>     address of database server (mandatory)\n");
-	printf("-u --db-user <user>   	database user (mandatory)\n");
-	printf("-P --db-password <pwd>  database user password (optional)\n");
-	printf("-p --db-port <port>     database service port (0..65535, mandatory)\n");
-	printf("-s --db-schema <name>   database schema to use (mandatory)\n");
 }

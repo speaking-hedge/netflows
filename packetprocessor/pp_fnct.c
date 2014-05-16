@@ -14,12 +14,7 @@ void pp_init_ctx(struct pp_config *pp_ctx, void (*packet_handler)(struct pp_conf
 	pp_ctx->packet_socket = 0;
 	pp_ctx->packet_handler_cb = packet_handler;
 
-	pp_ctx->output_format = PP_OUTPUT_UNDEFINED;
 	pp_ctx->processing_options = PP_PROC_OPT_NONE;
-
-	memset(&pp_ctx->db_config, 0, sizeof(pp_ctx->db_config));
-	pp_ctx->db_config.port = -1;
-	pp_ctx->db_config.type = PP_DB_UNDEFINED;
 }
 
 /**
