@@ -54,6 +54,16 @@ struct packet_context {
 
 	/******* network layer *******/
 
+	/* protocol specific meta informations */
+	union {
+		struct {
+			uint32_t length;
+		} ip;
+		struct {
+			uint32_t length;
+		} ipv6;
+	} l3_meta;
+
 	/* src/dst ip/ipv6 addresses */
 	union {
 		struct in_addr  v4;

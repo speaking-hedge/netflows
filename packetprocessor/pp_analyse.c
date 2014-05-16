@@ -22,6 +22,7 @@ int pp_decap(uint8_t *data, size_t len, uint64_t ts, struct packet_context *pkt_
 	assert(pkt_ctx);
 
 	pkt_ctx->packet = data;
+	pkt_ctx->length = len;
 	pkt_ctx->timestamp = ts;
 	memset(pkt_ctx->protocols, 0, sizeof(pkt_ctx->protocols));
 	memset(pkt_ctx->offsets, 0, sizeof(pkt_ctx->offsets));
@@ -121,7 +122,7 @@ static int __pp_decap_l3(uint32_t protocol, size_t *len, uint32_t *offset, struc
 
 		pkt_ctx->protocols[PP_OSI_LAYER_3] = ETH_P_IP;
 		pkt_ctx->offsets[PP_OSI_LAYER_3] = *offset;
-		pkt_ctx->length = htons(ip_hdr->tot_len);
+		pkt_ctx->l3_meta.ip.length = htons(ip_hdr->tot_len);
 		pkt_ctx->src_addr.v4.s_addr = ip_hdr->saddr;
 		pkt_ctx->dst_addr.v4.s_addr = ip_hdr->daddr;
 
@@ -142,7 +143,7 @@ static int __pp_decap_l3(uint32_t protocol, size_t *len, uint32_t *offset, struc
 		pkt_ctx->protocols[PP_OSI_LAYER_3] = ETH_P_IPV6;
 		pkt_ctx->offsets[PP_OSI_LAYER_3] = *offset;
 
-		pkt_ctx->length = htons(ipv6_hdr->ip6_plen);
+		pkt_ctx->l3_meta.ipv6.length = htons(ipv6_hdr->ip6_plen);
 		pkt_ctx->src_addr.v6 = ipv6_hdr->ip6_src;
 		pkt_ctx->dst_addr.v6 = ipv6_hdr->ip6_dst;
 
