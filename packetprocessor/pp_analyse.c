@@ -129,7 +129,10 @@ static int __pp_decap_l3(uint32_t protocol, size_t *len, uint32_t *offset, struc
 		*len -= ip_hdr->ihl*4;
 		*offset += ip_hdr->ihl*4;
 
-		return ip_hdr->protocol;
+		/* fall through if packet is IPv6-in-IPv4 */
+		if (ip_hdr->protocol != IPPROTO_IPV6) {
+			return ip_hdr->protocol;
+		}
 
 	case ETH_P_IPV6:
 		if (*len < sizeof(struct ip6_hdr)) {
