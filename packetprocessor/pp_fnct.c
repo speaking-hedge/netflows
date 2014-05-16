@@ -182,7 +182,7 @@ int pp_live_capture(struct pp_config *pp_ctx, volatile int *run, volatile int *d
 				clock_gettime(CLOCK_MONOTONIC, &ts);
 				inb = recvfrom(pp_ctx->packet_socket, buf, 9000, 0, (struct sockaddr*)&src_addr, &addr_len);
 				if (inb) {
-					pp_ctx->packet_handler_cb(pp_ctx, buf, inb, ts.tv_sec * 1000000 + ts.tv_nsec/1000);
+					pp_ctx->packet_handler_cb(pp_ctx, buf, inb, ts.tv_sec * 1000 + ts.tv_nsec/1000000);
 					/* NOTE: packet direction -> src_addr.sll_pkttype, see man packet */
 				}
 		} /* __poll */
