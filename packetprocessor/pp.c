@@ -5,7 +5,7 @@ volatile int dump;
 
 static void __pp_set_action(struct pp_config *pp_ctx, enum pp_action action, char *packet_source);
 static int __pp_run_live(struct pp_config *pp_ctx);
-static void packet_handler(struct pp_config *pp_ctx, uint8_t *data, uint16_t len, uint64_t timestamp);
+static void packet_handler(struct pp_config *pp_ctx, uint8_t *data, uint16_t len, uint64_t ts);
 
 int main(int argc, char **argv) {
 
@@ -59,10 +59,16 @@ int main(int argc, char **argv) {
 static void packet_handler(struct pp_config *pp_ctx,
 							uint8_t *data,
 							uint16_t len,
-							uint64_t timestamp) {
-	struct packet packet = analyse(data, timestamp);
-	print_packet_info(&packet);
+							uint64_t ts) {
 
+	struct packet_context pkt_ctx;
+
+	if(0 <= pp_decap(data, len, ts, &pkt_ctx)) {
+		pp_dump_packet(&pkt_ctx);
+	} else {
+		printf(".");
+		fflush(stdout);
+	}
 }
 
 static int __pp_run_live(struct pp_config *pp_ctx) {

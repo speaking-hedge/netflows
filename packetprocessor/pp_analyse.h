@@ -1,83 +1,96 @@
 #ifndef __PP_ANALYSE_H
 #define __PP_ANALYSE_H
 
-#include <netinet/in.h>
+/**
+ * layer / supported protocols
+ * ------------------------------
+ * 2 Ethernet, 802-1.Q
+ * ------------------------------
+ * 3 IP, IPv6
+ * ------------------------------
+ * 4 TCP, UDP
+ */
+
+/* dude, see /usr/include/netinet/ */
 #include <netinet/if_ether.h>
+#include <netinet/ip.h>
+#include <netinet/ip6.h>
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
+
 #include <stdio.h>
 #include <inttypes.h>
+#include <string.h>
+#include <assert.h>
 
-/*
- * Structs
- */
+enum PP_OSI_LAYERS {
+	PP_OSI_LAYER_1 = 0,
+	PP_OSI_LAYER_2,
+	PP_OSI_LAYER_3,
+	PP_OSI_LAYER_4,
+	PP_OSI_LAYER_5,
+	PP_OSI_LAYER_6,
+	PP_OSI_LAYER_7,
+	PP_OSI_EOL
+};
 
 /* packet information */
-struct packet {
-	u_int64_t       timestamp; // time stamp
-	u_int8_t        version;   // version
-	u_int16_t       length;    // packet size
-	u_int8_t        protocol;  // protocol
+struct packet_context {
 
-	struct in_addr  src_ip,    // source ip address
-	                dst_ip;    // destination ip address
-	struct in6_addr src_ip6,   // source ipv6 address // TODO: check if in6_addr can hold ipv4 addresses
-	                dst_ip6;   // destination ipv6 address
-	in_port_t       src_port,  // source port
-	                dst_port;  // destination port
+	/* point to the packet data */
+	uint8_t *packet;
+
+	/* time we got the packet */
+	uint64_t timestamp;
+
+	/* size in bytes l2..l7*/
+	uint16_t length;
+
+	/* offset of each layer to the packet start */
+	uint32_t offsets[PP_OSI_EOL];
+
+	/* protocol detected on each layer */
+	uint32_t protocols[PP_OSI_EOL];
+
+	/******* network layer *******/
+
+	/* src/dst ip/ipv6 addresses */
+	union {
+		struct in_addr  v4;
+		struct in6_addr v6;
+	} src_addr;
+	union {
+		struct in_addr  v4;
+		struct in6_addr v6;
+	} dst_addr;
+
+	/******* transport layer *******/
+
+	/* protocol specific meta informations */
+	union {
+		struct {
+			uint16_t window_size;
+			uint16_t fin:1;
+			uint16_t syn:1;
+			uint16_t rst:1;
+			uint16_t ack:1;
+		} tcp;
+	} l4_meta;
+
+	/* src/dst ports */
+	in_port_t       src_port;
+	in_port_t       dst_port;
 };
 
-/* TCP Header */
-struct header_tcp {
-	in_port_t src_port;        // source port // short because of byte order
-	in_port_t dst_port;        // destination port
-	u_int32_t seq_nr;          // sequence number
-	u_int32_t ack_nr;          // acknowledge number
-	u_int16_t flags;           // data offset / control flags
-	u_int16_t window;          // receive window size
-	u_int16_t checksum;        // checksum
-	u_int16_t urgent;          // urgent pointer
-};
+#ifdef __GNUC__
+#define likely(x)       __builtin_expect(!!(x), 1)
+#define unlikely(x)     __builtin_expect(!!(x), 0)
+#else
+#define likely(x)       (x)
+#define unlikely(x)     (x)
+#endif
 
-/* IPv6 header */
-struct header_ipv6 {
-	u_int32_t       version;   // version, traffic class, flow label
-	u_int16_t       payload;   // payload length
-	u_int8_t        nexthdr;   // next header
-	u_int8_t        ttl;       // time to live
-	struct in6_addr src_ip,    // source ip address
-	                dst_ip;    // destination ip address
-};
-
-/* IPv4 header */
-struct header_ipv4 {
-	u_int8_t        version;   // version / header length
-	u_int8_t        tos;       // type of service
-	u_int16_t       length;    // total length
-	u_int16_t       id;        // identification
-	u_int16_t       offset;    // flags / offset
-	u_int8_t        ttl;       // time to live
-	u_int8_t        protocol;  // protocol
-	u_int16_t       checksum;  // checksum
-	struct  in_addr src_ip,    // source ip address
-	                dst_ip;    // destination ip address
-};
-
-/*
- * variables
- */
-struct ether_header *eptr;
-const struct header_ipv4* ip;
-const struct header_ipv6* ipv6;
-const struct header_tcp* tcp;
-
-char ipsrc[INET6_ADDRSTRLEN]; // ip address string reserved
-char ipdst[INET6_ADDRSTRLEN]; // ip address string reserved
-
-/* 
- * functions
- */
-struct packet analyse(uint8_t *data, uint64_t timestamp);
-void print_packet_info(struct packet* packet);
+int pp_decap(uint8_t *data, size_t len, uint64_t ts, struct packet_context *pkt_ctx);
+void pp_dump_packet(struct packet_context *pkt_ctx);
 
 #endif
