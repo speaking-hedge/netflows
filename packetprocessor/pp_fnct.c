@@ -15,6 +15,8 @@ void pp_init_ctx(struct pp_config *pp_ctx, void (*packet_handler)(struct pp_conf
 	pp_ctx->packet_handler_cb = packet_handler;
 
 	pp_ctx->processing_options = PP_PROC_OPT_NONE;
+
+	pp_ctx->bp_filter = NULL;
 }
 
 /**
@@ -35,6 +37,11 @@ void pp_cleanup_ctx(struct pp_config *pp_ctx) {
 
 	if (pp_ctx->pcap_handle) {
 		pp_pcap_close(pp_ctx);
+	}
+
+	if (pp_ctx->bp_filter) {
+		free(pp_ctx->bp_filter);
+		pp_ctx->bp_filter = NULL;
 	}
 
 	pp_live_shutdown(pp_ctx);

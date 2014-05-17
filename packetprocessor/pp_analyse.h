@@ -11,6 +11,8 @@
  * 4 TCP, UDP
  */
 
+#include <pp_common.h>
+
 /* dude, see /usr/include/netinet/ */
 #include <netinet/if_ether.h>
 #include <netinet/ip.h>
@@ -100,7 +102,7 @@ struct packet_context {
 #define unlikely(x)     (x)
 #endif
 
-int pp_decap(uint8_t *data, size_t len, uint64_t ts, struct packet_context *pkt_ctx);
+enum PP_DECAP_RESULT pp_decap(uint8_t *data, size_t len, uint64_t ts, struct packet_context *pkt_ctx, struct bpf_insn *filter);
 void pp_dump_packet(struct packet_context *pkt_ctx);
 
 #endif

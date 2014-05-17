@@ -65,11 +65,30 @@ static void __pp_packet_handler(struct pp_config *pp_ctx,
 
 	struct packet_context pkt_ctx;
 
-	if(0 <= pp_decap(data, len, ts, &pkt_ctx)) {
+	if (pp_ctx->bp_filter && !bpf_filter(pp_ctx->bp_filter, data, len, len)) {
+		return;
+	}
+
+	switch(pp_decap(data, len, ts, &pkt_ctx, pp_ctx->bp_filter)) {
+	case PP_DECAP_OKAY:
+		/* TODO: flow handling */
+		/* TODO: analyse */
 		pp_dump_packet(&pkt_ctx);
-	} else {
-		printf(".");
-		fflush(stdout);
+		break;
+#ifdef PP_DEBUG
+	case -PP_DECAP_L2_PROTO_UNKNOWN:
+	case -PP_DECAP_L3_PROTO_UNKNOWN:
+	case -PP_DECAP_L4_PROTO_UNKNOWN:
+		printf("u"); fflush(stdout);
+		break;
+	case -PP_DECAP_L2_ERROR:
+	case -PP_DECAP_L3_ERROR:
+	case -PP_DECAP_L4_ERROR:
+		printf("e"); fflush(stdout);
+		break;
+	default:
+		printf("x"); fflush(stdout);
+#endif
 	}
 }
 
@@ -130,13 +149,14 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
 		{"check", 1, NULL, 'c'},
 		{"output", 1, NULL, 'o'},
 		{"gen-job-id", 0, NULL, 'j'},
+		{"bp-filter", 1, NULL, 'f'},
 		{NULL, 0, NULL, 0}
 	};
 	int opt = 0, i = 0;
 	char *endptr = NULL;
 
     while(1) {
-		opt = getopt_long(argc, argv, "hva:l:c:o:j", options, NULL);
+		opt = getopt_long(argc, argv, "hva:l:c:o:jf:", options, NULL);
 		if (opt == -1)
 			break;
 			
@@ -168,6 +188,21 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
 				break;
 			case 'j': /* create hash */
 				pp_ctx->processing_options |= PP_PROC_OPT_CREATE_HASH;
+				break;
+			case 'f':
+				if (pp_ctx->bp_filter) {
+					fprintf(stderr, "more then one filter string given but only one allowed. abort.\n");
+					exit(1);
+				}
+				struct bpf_program bpfp;
+				if (pcap_compile_nopcap(1500,
+										DLT_EN10MB,
+										&bpfp,
+										optarg, 1, 0)) {
+					fprintf(stderr, "failed to compile packet filter. abort.\n");
+					exit(1);
+				}
+				pp_ctx->bp_filter = bpfp.bf_insns;
 				break;
 			default:
 				abort();
@@ -243,6 +278,7 @@ void pp_usage(void) {
 	printf("                        on given file\n");
 	printf("-a --analyse <file>     analyse given pcap(ng) file\n");
 	printf("-l --live-analyse <if>  capture and analyse traffic from given interface\n");
+	printf("-f --bp-filter <bpf>    set Berkeley Packet Filter by given string\n");
 	printf("\n");
 	printf("-v --version            show program version\n");
 	printf("-h --help               show help\n");

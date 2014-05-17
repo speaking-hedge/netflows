@@ -12,13 +12,15 @@ static int __pp_decap_ipv6_options(uint32_t protocol, size_t *len, uint32_t *off
  * @param len of the packet in bytes
  * @param timestamp the packet was received
  * @param pkt_ctx holds the context of the current packet
- * @retval 0 on success
- * @retval 1 on error
+ * @param filter points to the berkley packet filter program (NULL if not used)
+ * @retval PP_DECAP_OKAY on success
+ * @retval !=PP_DECAP_OKAY
  */
-int pp_decap(uint8_t *data, size_t len, uint64_t ts, struct packet_context *pkt_ctx) {
+enum PP_DECAP_RESULT pp_decap(uint8_t *data, size_t len, uint64_t ts, struct packet_context *pkt_ctx, struct bpf_insn *filter) {
 
-	uint32_t protocol = 0;
+	int32_t rc_proto = 0;
 	uint32_t offset = 0;
+
 	assert(pkt_ctx);
 
 	pkt_ctx->packet = data;
@@ -27,19 +29,13 @@ int pp_decap(uint8_t *data, size_t len, uint64_t ts, struct packet_context *pkt_
 	memset(pkt_ctx->protocols, 0, sizeof(pkt_ctx->protocols));
 	memset(pkt_ctx->offsets, 0, sizeof(pkt_ctx->offsets));
 
-	if (0 < (protocol= __pp_decap_l2(0,&len, &offset, pkt_ctx))) {
-		if (0 < (protocol= __pp_decap_l3(protocol, &len, &offset, pkt_ctx))) {
-			protocol = __pp_decap_l4(protocol, &len, &offset, pkt_ctx);
+	if ((rc_proto = __pp_decap_l2(0, &len, &offset, pkt_ctx)) >= 0 ) {
+		if ((rc_proto = __pp_decap_l3(rc_proto, &len, &offset, pkt_ctx)) >= 0) {
+			return __pp_decap_l4(rc_proto, &len, &offset, pkt_ctx);
 		}
 	}
-	
-	/* TODO: apply filter */
-	
-	/* TODO: flow handling */
-	
-	/* TODO: analyse */
 
-	return protocol;
+	return rc_proto;
 }
 
 /**
@@ -49,13 +45,13 @@ int pp_decap(uint8_t *data, size_t len, uint64_t ts, struct packet_context *pkt_
  * @param data of the packet
  * @param len of the date in bytes
  * @param pkt_ctx that holds the informations of the packet
- * @retval >=0 layer 2/3 o. 3 protocol
- * @retval <0 on error
+ * @retval >=0 layer 2/3 | 3 protocol
+ * @retval -PP_DECAP_L2_* on error
  */
 static int __pp_decap_l2(uint32_t protocol, size_t *len, uint32_t *offset, struct packet_context *pkt_ctx) {
 
 	if (*len < ETH_HLEN) {
-		return -1;
+		return -PP_DECAP_L2_ERROR;
 	}
 
 	pkt_ctx->protocols[PP_OSI_LAYER_2] = 0;
@@ -74,14 +70,14 @@ static int __pp_decap_l2(uint32_t protocol, size_t *len, uint32_t *offset, struc
  * @param len of the date in bytes
  * @param pkt_ctx that holds the informations of the packet
  * @retval >=0 layer 3 protocol
- * @retval <0 on error
+ * @retval -PP_DECAP_L2_* on error
  */
 static int __pp_decap_l23(uint32_t protocol, size_t *len, uint32_t *offset, struct packet_context *pkt_ctx) {
 
 	int next_proto = 0;
 
 	if (*len < 2) {
-		return -1;
+		return -PP_DECAP_L2_ERROR;
 	}
 
 	next_proto = ntohs((uint16_t)pkt_ctx->packet[*offset + 4]);
@@ -99,7 +95,7 @@ static int __pp_decap_l23(uint32_t protocol, size_t *len, uint32_t *offset, stru
  * @param len of the date in bytes
  * @param pkt_ctx that holds the informations of the packet
  * @retval >=0 layer 4 protocol
- * @retval <0 on error
+ * @retval -PP_DECAP_L3_* on error
  */
 static int __pp_decap_l3(uint32_t protocol, size_t *len, uint32_t *offset, struct packet_context *pkt_ctx) {
 
@@ -112,12 +108,12 @@ static int __pp_decap_l3(uint32_t protocol, size_t *len, uint32_t *offset, struc
 
 	case ETH_P_IP:
 		if (*len < sizeof(struct iphdr)) {
-			return -1;
+			return -PP_DECAP_L3_ERROR;
 		}
 		ip_hdr = (struct iphdr*)(&pkt_ctx->packet[*offset]);
 
 		if (unlikely(ip_hdr->version != 4)) {
-			return -1;
+			return -PP_DECAP_L3_ERROR;
 		}
 
 		pkt_ctx->protocols[PP_OSI_LAYER_3] = ETH_P_IP;
@@ -136,12 +132,12 @@ static int __pp_decap_l3(uint32_t protocol, size_t *len, uint32_t *offset, struc
 
 	case ETH_P_IPV6:
 		if (*len < sizeof(struct ip6_hdr)) {
-			return -1;
+			return -PP_DECAP_L3_ERROR;
 		}
 		ipv6_hdr = (struct ip6_hdr*)(&pkt_ctx->packet[*offset]);
 
 		if (unlikely(((ipv6_hdr->ip6_vfc & 0xf0) >> 4) != 6)) {
-			return -1;
+			return -PP_DECAP_L3_ERROR;
 		}
 		pkt_ctx->protocols[PP_OSI_LAYER_3] = ETH_P_IPV6;
 		pkt_ctx->offsets[PP_OSI_LAYER_3] = *offset;
@@ -155,7 +151,7 @@ static int __pp_decap_l3(uint32_t protocol, size_t *len, uint32_t *offset, struc
 
 		return __pp_decap_ipv6_options(ipv6_hdr->ip6_nxt, len, offset, pkt_ctx);
 	default:
-		return -1;
+		return -PP_DECAP_L3_PROTO_UNKNOWN;
 	}
 }
 
@@ -165,8 +161,8 @@ static int __pp_decap_l3(uint32_t protocol, size_t *len, uint32_t *offset, struc
  * @param data of the packet
  * @param len of the date in bytes
  * @param pkt_ctx that holds the informations of the packet
- * @retval 0 on success
- * @retval -1 on error
+ * @retval protocol type of the next layer on success
+ * @retval -PP_DECAP_L3_* on error
  */
 static int __pp_decap_ipv6_options(uint32_t protocol, size_t *len, uint32_t *offset, struct packet_context *pkt_ctx) {
 
@@ -178,7 +174,7 @@ static int __pp_decap_ipv6_options(uint32_t protocol, size_t *len, uint32_t *off
 		case IPPROTO_DSTOPTS:
 		case IPPROTO_ROUTING:
 			if (*len < sizeof(struct ip6_ext)) {
-				return -1;
+				return -PP_DECAP_L3_ERROR;
 			}
 			struct ip6_ext *ext_hdr = (struct ip6_ext*)&pkt_ctx->packet[*offset];
 
@@ -187,7 +183,7 @@ static int __pp_decap_ipv6_options(uint32_t protocol, size_t *len, uint32_t *off
 			return __pp_decap_ipv6_options(ext_hdr->ip6e_nxt, len, offset, pkt_ctx);
 		case IPPROTO_FRAGMENT:
 			if (*len < sizeof(struct ip6_frag)) {
-				return -1;
+				return -PP_DECAP_L3_ERROR;
 			}
 			struct ip6_frag *frag_hdr = (struct ip6_frag*)&pkt_ctx->packet[*offset];
 
@@ -198,7 +194,7 @@ static int __pp_decap_ipv6_options(uint32_t protocol, size_t *len, uint32_t *off
 		case IPPROTO_NONE: /* no next header */
 		case IPPROTO_MH: /* mobile */
 		default:
-			return -1;
+			return -PP_DECAP_L3_PROTO_UNKNOWN;
 	}
 }
 
@@ -208,8 +204,8 @@ static int __pp_decap_ipv6_options(uint32_t protocol, size_t *len, uint32_t *off
  * @param data of the packet
  * @param len of the date in bytes
  * @param pkt_ctx that holds the informations of the packet
- * @retval 0 on success
- * @retval -1 on error
+ * @retval PP_DECAP_OKAY on success
+ * @retval -PP_DECAP_L4_* on error
  */
 static int __pp_decap_l4(uint32_t protocol, size_t *len, uint32_t *offset, struct packet_context *pkt_ctx) {
 
@@ -219,7 +215,7 @@ static int __pp_decap_l4(uint32_t protocol, size_t *len, uint32_t *offset, struc
 	switch(protocol) {
 	case IPPROTO_TCP:
 		if (*len < sizeof(struct tcphdr)) {
-			return -1;
+			return -PP_DECAP_L4_ERROR;
 		}
 		tcp_hdr = (struct tcphdr*)&pkt_ctx->packet[*offset];
 
@@ -235,10 +231,10 @@ static int __pp_decap_l4(uint32_t protocol, size_t *len, uint32_t *offset, struc
 
 		*len -= tcp_hdr->th_off * 4;
 		*offset += tcp_hdr->th_off * 4;
-		return 0;
+		return PP_DECAP_OKAY;
 	case IPPROTO_UDP:
 		if (*len < sizeof(struct udphdr)) {
-			return -1;
+			return -PP_DECAP_L4_ERROR;
 		}
 		udp_hdr = (struct udphdr*)&pkt_ctx->packet[*offset];
 
@@ -249,9 +245,9 @@ static int __pp_decap_l4(uint32_t protocol, size_t *len, uint32_t *offset, struc
 
 		*len -= sizeof(struct udphdr);
 		*offset += sizeof(struct udphdr);
-		return 0;
+		return PP_DECAP_OKAY;
 	default:
-		return -1;
+		return -PP_DECAP_L4_PROTO_UNKNOWN;
 	}
 }
 
