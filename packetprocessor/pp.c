@@ -1,7 +1,7 @@
 #include "pp.h"
 
-volatile int run;
-volatile int dump;
+volatile sig_atomic_t run;
+volatile sig_atomic_t dump;
 
 static void __pp_set_action(struct pp_config *pp_ctx, enum pp_action action, char *packet_source);
 static int __pp_run_pcap_file(struct pp_config *pp_ctx);
@@ -16,7 +16,6 @@ int main(int argc, char **argv) {
 	signal(SIGINT, &pp_catch_term);
 	signal(SIGQUIT, &pp_catch_term);
 	signal(SIGTERM, &pp_catch_term);
-
 	signal(SIGUSR1, &pp_catch_dump);
 
 	pp_init_ctx(&pp_ctx, &__pp_packet_handler);
@@ -234,7 +233,7 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
  * @brief handle signals requesting a dump of the current state
  * @param signal to handle
  */
-void pp_catch_dump(int signal) {
+void pp_catch_dump(int sig) {
 	dump = 1;
 }
 
@@ -242,7 +241,7 @@ void pp_catch_dump(int signal) {
  * @brief handle signals requesting program to exit
  * @param signal to handle
  */
-void pp_catch_term(int signal) {
+void pp_catch_term(int sig) {
 	run = 0;
 }
 

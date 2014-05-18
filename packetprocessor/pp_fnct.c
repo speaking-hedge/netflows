@@ -96,7 +96,7 @@ int pp_pcap_open(struct pp_config *pp_ctx) {
 
 	pp_ctx->pcap_handle = pcap_open_offline(pp_ctx->packet_source, errbuf);
 	if (!pp_ctx->pcap_handle) {
-		return 1; 
+		return 1;
 	}
 
 	return 0;
@@ -177,12 +177,17 @@ int pp_live_capture(struct pp_config *pp_ctx, volatile int *run, volatile int *d
 	struct pollfd fd = {0};
 	struct sockaddr_ll src_addr;
 	socklen_t addr_len = sizeof src_addr;
-	struct timespec ts;
+	struct timespec ts, ppoll_tout;
+	sigset_t sigmask;
+
+	ppoll_tout.tv_sec = 0;
+	ppoll_tout.tv_nsec = 250000;
+	sigfillset(&sigmask);
 
 	while(*run) {
 		fd.fd = pp_ctx->packet_socket;
 		fd.events = POLLIN;
-		switch(poll(&fd, 1, 100)) {
+		switch(ppoll(&fd, 1, &ppoll_tout, &sigmask)) {
 			case -1:
 				return 1;
 			case 0:
