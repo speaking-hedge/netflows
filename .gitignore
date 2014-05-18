@@ -1,2 +1,4 @@
 build/*
 !build/.gitignore
+test/run_container_nonsudo.sh
+test/create_container_nonsudo.sh
