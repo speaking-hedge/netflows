@@ -1,0 +1,19 @@
+<IfModule mod_rewrite.c>
+RewriteEngine On
+
+#rewrite any request that does not match an existing file/folder in this directory
+RewriteCond %{REQUEST_FILENAME} !-f	
+RewriteCond %{REQUEST_FILENAME} !-d
+
+#The rule which will be used to rewrite non-matching requests:
+#	(.*) the captured name (can be read from $1) will be sent to netflows_rest via GET['request']
+#	Params:
+#	 QSA : Appends any query string from the original request URL
+#	 NC  : case insensitive URLs
+#	 L   : prevent mod_rewrite from processing any other rule, if this one applies
+RewriteRule (.*)$ index.php?request=$1 [QSA,NC,L]
+</IfModule>
+php_flag display_startup_errors on
+php_flag display_errors on
+php_flag html_errors on
+php_flag  log_errors on

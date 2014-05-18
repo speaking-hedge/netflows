@@ -26,7 +26,7 @@ mkdir -p "$www_cgi"
 cp "${build_pp_bin}" "${www_cgi}/"
 
 echo "copy web service to ${www_root}..."
-cp -r "$www_service_src"/* ${www_root}
+cp -a "$www_service_src"/. ${www_root}
 
 echo "copy sample pcaps to ${www_upload}..."
 mkdir -p "$www_upload"

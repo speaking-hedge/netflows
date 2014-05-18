@@ -1,0 +1,133 @@
+<!--
+ Adopted from:
+ http://abandon.ie/notebook/simple-file-uploads-using-jquery-ajax
+ Also some nice examples:
+ http://designscrazed.com/html5-jquery-file-upload-scripts/
+-->
+<html>
+    <head>
+        <meta http-equiv="Content-Type" content="text/html;charset=utf-8"/>
+        <title>File Upload test</title>
+        <script type="text/javascript" src='js/jquery.js'></script>
+    </head>
+
+    <body>
+        <h2>File-Upload Example</h2>
+        <!-- The data encoding type, enctype, MUST be specified as below -->
+        <form id="fileupload" enctype="multipart/form-data" action="fileio/upload" method="POST">
+            <!-- MAX_FILE_SIZE must precede the file input field -->
+            <input type="hidden" name="MAX_FILE_SIZE" value="30000" />
+            <!-- Name of input element determines name in $_FILES array -->
+            Send this file: <input name="userfile" type="file" />
+            <input type="submit" value="Send File" />
+        </form>
+
+        <h2>Job-Creation Example</h2>
+        <table>
+        <form id="insertjob" action="accessjobs/insertjob" method="POST">
+            <tr>
+                <td>Job-ID:</td>
+                <td><input type="text" name="id" /></td>
+            </tr>
+            <tr>
+                <td>JobState:</td>
+                <td><input type="text" name="jobstate" /></td>
+            </tr>
+            <tr>
+                <td>Description:</td>
+                <td><input type="text" name="description" /></td>
+            </tr>
+            <tr>
+                <td>Is public:</td>
+                <td><input type="text" name="ispublic" /></td>
+            </tr>
+            <tr>
+                <td>Start-Time:</td>
+                <td><input type="text" name="started" /></td>
+            </tr>
+            <tr>
+                <td>Finished-Time:</td>
+                <td><input type="text" name="finished" /></td>
+            </tr>
+            <tr>
+                <td>Percentage finshed:</td>
+                <td><input type="text" name="percentage" /></td>
+            </tr>
+            <tr>
+                <td>File-Name:</td>
+                <td><input type="text" name="filename" /></td>
+            </tr>
+            <tr>
+                <td>File-Size:</td>
+                <td><input type="text" name="filesize" /></td>
+            </tr>
+            <tr>
+                <td>t_packets:</td>
+                <td><input type="text" name="packets" /></td>
+            </tr>
+            <tr>
+                <td>t_time_ms:</td>
+                <td><input type="text" name="time_ms" /></td>
+            </tr>
+            <tr>
+                <td>analyzers:</td>
+                <td><input type="text" name="analyzers" /></td>
+            </tr>
+            <tr>
+                <td><input type="submit" value="Create Job" /></td>
+            </tr>
+        </form>
+        </table>
+    </body>
+
+    <script>
+        //store the selected file in a javascript variable
+        var files;
+
+        $('input[type=file]').on('change', prepareUpload);
+
+        function prepareUpload(event)
+        {
+            files = event.target.files;
+        }
+
+        //handle the submit-button event
+        $('#fileupload').on('submit', uploadFiles);
+
+        function uploadFiles(event)
+        {
+            event.stopPropagation();    //stop any other action associated with the submit-event
+            event.preventDefault();
+            //~ var data = new FormData();
+            //~ $.each(files, function(key, value)
+                          //~ {
+                            //~ data.append(key, value);
+                          //~ });
+
+          $.ajax({
+                url         : 'http://localhost/fileio/upload?filename='+files[0].name,
+                type        : 'PUT',
+                data        : files.item(0),    //item(0) will be the file content
+                cache       : false,
+                dataType    : 'json',   //the type of data that is expected as a response from the server
+                processData : false,
+                success     : function(data, textStatus, jqXHR)
+                              {
+                                  if(typeof data.error === 'undefined')
+                                  {
+                                    console.dir(data);
+                                    //submitForm(event, data);
+                                  }
+                                  else
+                                  {
+                                    console.log("Server Responds 'ERROR' : "+data.error);
+                                  }
+                              },
+              error         : function(jqXHR, textStatus, errorThrown)
+                              {
+                                console.log("ERROR during file-upload : "+errorThrown);
+                              }
+          });
+        }
+    </script>
+</html>
