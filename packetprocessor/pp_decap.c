@@ -1,10 +1,10 @@
-#include "pp_analyse.h"
+#include "pp_decap.h"
 
-static int __pp_decap_l2(uint32_t protocol, size_t *len, uint32_t *offset, struct packet_context *pkt_ctx);
-static int __pp_decap_l23(uint32_t protocol, size_t *len, uint32_t *offset, struct packet_context *pkt_ctx);
-static int __pp_decap_l3(uint32_t protocol, size_t *len, uint32_t *offset, struct packet_context *pkt_ctx);
-static int __pp_decap_l4(uint32_t protocol, size_t *len, uint32_t *offset, struct packet_context *pkt_ctx);
-static int __pp_decap_ipv6_options(uint32_t protocol, size_t *len, uint32_t *offset, struct packet_context *pkt_ctx);
+static int __pp_decap_l2(uint32_t protocol, size_t *len, uint32_t *offset, struct pp_packet_context *pkt_ctx);
+static int __pp_decap_l23(uint32_t protocol, size_t *len, uint32_t *offset, struct pp_packet_context *pkt_ctx);
+static int __pp_decap_l3(uint32_t protocol, size_t *len, uint32_t *offset, struct pp_packet_context *pkt_ctx);
+static int __pp_decap_l4(uint32_t protocol, size_t *len, uint32_t *offset, struct pp_packet_context *pkt_ctx);
+static int __pp_decap_ipv6_options(uint32_t protocol, size_t *len, uint32_t *offset, struct pp_packet_context *pkt_ctx);
 
 /**
  * @brief general packet decapsulation
@@ -16,7 +16,7 @@ static int __pp_decap_ipv6_options(uint32_t protocol, size_t *len, uint32_t *off
  * @retval PP_DECAP_OKAY on success
  * @retval !=PP_DECAP_OKAY
  */
-enum PP_DECAP_RESULT pp_decap(uint8_t *data, size_t len, uint64_t ts, struct packet_context *pkt_ctx, struct bpf_insn *filter) {
+enum PP_DECAP_RESULT pp_decap(uint8_t *data, size_t len, uint64_t ts, struct pp_packet_context *pkt_ctx, struct bpf_insn *filter) {
 
 	int32_t rc_proto = 0;
 	uint32_t offset = 0;
@@ -48,7 +48,7 @@ enum PP_DECAP_RESULT pp_decap(uint8_t *data, size_t len, uint64_t ts, struct pac
  * @retval >=0 layer 2/3 | 3 protocol
  * @retval -PP_DECAP_L2_* on error
  */
-static int __pp_decap_l2(uint32_t protocol, size_t *len, uint32_t *offset, struct packet_context *pkt_ctx) {
+static int __pp_decap_l2(uint32_t protocol, size_t *len, uint32_t *offset, struct pp_packet_context *pkt_ctx) {
 
 	if (*len < ETH_HLEN) {
 		return -PP_DECAP_L2_ERROR;
@@ -72,7 +72,7 @@ static int __pp_decap_l2(uint32_t protocol, size_t *len, uint32_t *offset, struc
  * @retval >=0 layer 3 protocol
  * @retval -PP_DECAP_L2_* on error
  */
-static int __pp_decap_l23(uint32_t protocol, size_t *len, uint32_t *offset, struct packet_context *pkt_ctx) {
+static int __pp_decap_l23(uint32_t protocol, size_t *len, uint32_t *offset, struct pp_packet_context *pkt_ctx) {
 
 	int next_proto = 0;
 
@@ -97,7 +97,7 @@ static int __pp_decap_l23(uint32_t protocol, size_t *len, uint32_t *offset, stru
  * @retval >=0 layer 4 protocol
  * @retval -PP_DECAP_L3_* on error
  */
-static int __pp_decap_l3(uint32_t protocol, size_t *len, uint32_t *offset, struct packet_context *pkt_ctx) {
+static int __pp_decap_l3(uint32_t protocol, size_t *len, uint32_t *offset, struct pp_packet_context *pkt_ctx) {
 
 	struct iphdr* ip_hdr = NULL;
 	struct ip6_hdr* ipv6_hdr = NULL;
@@ -164,7 +164,7 @@ static int __pp_decap_l3(uint32_t protocol, size_t *len, uint32_t *offset, struc
  * @retval protocol type of the next layer on success
  * @retval -PP_DECAP_L3_* on error
  */
-static int __pp_decap_ipv6_options(uint32_t protocol, size_t *len, uint32_t *offset, struct packet_context *pkt_ctx) {
+static int __pp_decap_ipv6_options(uint32_t protocol, size_t *len, uint32_t *offset, struct pp_packet_context *pkt_ctx) {
 
 	switch(protocol) {
 		case IPPROTO_TCP:
@@ -207,7 +207,7 @@ static int __pp_decap_ipv6_options(uint32_t protocol, size_t *len, uint32_t *off
  * @retval PP_DECAP_OKAY on success
  * @retval -PP_DECAP_L4_* on error
  */
-static int __pp_decap_l4(uint32_t protocol, size_t *len, uint32_t *offset, struct packet_context *pkt_ctx) {
+static int __pp_decap_l4(uint32_t protocol, size_t *len, uint32_t *offset, struct pp_packet_context *pkt_ctx) {
 
 	struct tcphdr* tcp_hdr = NULL;
 	struct udphdr* udp_hdr = NULL;
@@ -251,7 +251,7 @@ static int __pp_decap_l4(uint32_t protocol, size_t *len, uint32_t *offset, struc
 	}
 }
 
-void pp_dump_packet(struct packet_context* pkt_ctx) {
+void pp_dump_packet(struct pp_packet_context* pkt_ctx) {
 
 	char ipsrc[INET6_ADDRSTRLEN];
 	char ipdst[INET6_ADDRSTRLEN];

@@ -62,7 +62,7 @@ static void __pp_packet_handler(struct pp_config *pp_ctx,
 							uint16_t len,
 							uint64_t ts) {
 
-	struct packet_context pkt_ctx;
+	struct pp_packet_context pkt_ctx;
 
 	if (pp_ctx->bp_filter && !bpf_filter(pp_ctx->bp_filter, data, len, len)) {
 		return;

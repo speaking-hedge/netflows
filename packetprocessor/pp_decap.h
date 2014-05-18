@@ -37,7 +37,7 @@ enum PP_OSI_LAYERS {
 };
 
 /* packet information */
-struct packet_context {
+struct pp_packet_context {
 
 	/* point to the packet data */
 	uint8_t *packet;
@@ -102,7 +102,7 @@ struct packet_context {
 #define unlikely(x)     (x)
 #endif
 
-enum PP_DECAP_RESULT pp_decap(uint8_t *data, size_t len, uint64_t ts, struct packet_context *pkt_ctx, struct bpf_insn *filter);
-void pp_dump_packet(struct packet_context *pkt_ctx);
+enum PP_DECAP_RESULT pp_decap(uint8_t *data, size_t len, uint64_t ts, struct pp_packet_context *pkt_ctx, struct bpf_insn *filter);
+void pp_dump_packet(struct pp_packet_context *pkt_ctx);
 
 #endif

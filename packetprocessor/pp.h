@@ -7,7 +7,7 @@
 
 #include <pp_common.h>
 #include <pp_fnct.h>
-#include <pp_analyse.h>
+#include <pp_decap.h>
 
 
 #define PPVERSION "0.1"
