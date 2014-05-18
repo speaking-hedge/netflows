@@ -102,6 +102,10 @@ static int __pp_run_pcap_file(struct pp_config *pp_ctx) {
 		if (hdr.caplen == hdr.len) {
 			pp_ctx->packet_handler_cb(pp_ctx, (uint8_t*)pkt, hdr.caplen, (hdr.ts.tv_sec * 1000) + (hdr.ts.tv_usec / 1000));
 		}
+		if (dump) {
+			pp_dump_state(pp_ctx);
+			dump = 0;
+		}
 	}
 }
 
@@ -149,6 +153,7 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
 		{"check", 1, NULL, 'c'},
 		{"output", 1, NULL, 'o'},
 		{"gen-job-id", 0, NULL, 'j'},
+		{"job-id", 1, NULL, 'J'},
 		{"bp-filter", 1, NULL, 'f'},
 		{NULL, 0, NULL, 0}
 	};
@@ -156,10 +161,10 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
 	char *endptr = NULL;
 
     while(1) {
-		opt = getopt_long(argc, argv, "hva:l:c:o:jf:", options, NULL);
+		opt = getopt_long(argc, argv, "hva:l:c:o:jf:J:", options, NULL);
 		if (opt == -1)
 			break;
-			
+
 		switch(opt) {
 			case '?':
 				exit(1);
@@ -188,6 +193,13 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
 				break;
 			case 'j': /* create hash */
 				pp_ctx->processing_options |= PP_PROC_OPT_CREATE_HASH;
+				break;
+			case 'J': /* use id */
+				free(pp_ctx->job_id);
+				if (!(pp_ctx->job_id = strdup(optarg))) {
+					fprintf(stderr, "failed to alloc memory for job-id. abort.\n");
+					exit(1);
+				}
 				break;
 			case 'f':
 				if (pp_ctx->bp_filter) {
@@ -276,6 +288,7 @@ void pp_usage(void) {
 	printf("                        given file is a valid pcap(ng) file\n");
 	printf("-j --gen-job-id         generate a unique job-id (sha256) based\n");
 	printf("                        on given file\n");
+	printf("-J --job-id <id>        use given id to identify generated reports\n");
 	printf("-a --analyse <file>     analyse given pcap(ng) file\n");
 	printf("-l --live-analyse <if>  capture and analyse traffic from given interface\n");
 	printf("-f --bp-filter <bpf>    set Berkeley Packet Filter by given string\n");

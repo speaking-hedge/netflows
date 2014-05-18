@@ -24,6 +24,8 @@ struct pp_config {
 	char *packet_source;
 	char *output_file;
 
+	char *job_id;
+
 	pcap_t *pcap_handle;
 	int packet_socket;
 

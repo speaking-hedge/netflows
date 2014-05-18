@@ -10,6 +10,7 @@ void pp_init_ctx(struct pp_config *pp_ctx, void (*packet_handler)(struct pp_conf
 
 	pp_ctx->packet_source = NULL;
 	pp_ctx->output_file = NULL;
+	pp_ctx->job_id = NULL;
 	pp_ctx->pcap_handle = NULL;
 	pp_ctx->packet_socket = 0;
 	pp_ctx->packet_handler_cb = packet_handler;
@@ -25,24 +26,22 @@ void pp_init_ctx(struct pp_config *pp_ctx, void (*packet_handler)(struct pp_conf
  */
 void pp_cleanup_ctx(struct pp_config *pp_ctx) {
 
-	if (pp_ctx->packet_source) {
-		free(pp_ctx->packet_source);
-		pp_ctx->packet_source = NULL;
-	}
+	free(pp_ctx->packet_source);
+	pp_ctx->packet_source = NULL;
 
-	if (pp_ctx->output_file) {
-		free(pp_ctx->output_file);
-		pp_ctx->output_file = NULL;
-	}
+	free(pp_ctx->output_file);
+	pp_ctx->output_file = NULL;
 
 	if (pp_ctx->pcap_handle) {
 		pp_pcap_close(pp_ctx);
+		pp_ctx->pcap_handle = NULL;
 	}
 
-	if (pp_ctx->bp_filter) {
-		free(pp_ctx->bp_filter);
-		pp_ctx->bp_filter = NULL;
-	}
+	free(pp_ctx->bp_filter);
+	pp_ctx->bp_filter = NULL;
+
+	free(pp_ctx->job_id);
+	pp_ctx->job_id = NULL;
 
 	pp_live_shutdown(pp_ctx);
 }
@@ -54,6 +53,10 @@ void pp_cleanup_ctx(struct pp_config *pp_ctx) {
  */
 void pp_dump_state(struct pp_config *pp_ctx) {
 	/* TODO */
+	printf("*** dump state ***\n");
+	if (pp_ctx->job_id) {
+		printf("{job-id: \"%s\"}\n", pp_ctx->job_id);
+	}
 }
 
 /**
