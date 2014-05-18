@@ -6,6 +6,7 @@
 #include <netinet/in.h>
 
 #include <pp_common.h>
+#include <pp_context.h>
 #include <pp_fnct.h>
 #include <pp_decap.h>
 

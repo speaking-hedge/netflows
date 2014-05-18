@@ -12,33 +12,8 @@
 #include <pcap/bpf.h>
 #include <ethertype.h>
 
-struct pp_config {
-
-	enum pp_action {
-		PP_ACTION_UNDEFINED,
-		PP_ACTION_ANALYSE_FILE,
-		PP_ACTION_ANALYSE_LIVE,
-		PP_ACTION_CHECK
-	} action;
-
-	char *packet_source;
-	char *output_file;
-
-	char *job_id;
-
-	pcap_t *pcap_handle;
-	int packet_socket;
-
-	void (*packet_handler_cb)(struct pp_config *pp_ctx, uint8_t *data, uint16_t len, uint64_t timestamp);
-
-	enum {
-		PP_PROC_OPT_NONE = 0,
-		PP_PROC_OPT_CREATE_HASH = 1<<0,
-		PP_PROC_OPT_EOL
-	} processing_options;
-
-	struct bpf_insn *bp_filter;
-};
+/* number of buckets inside the hash table */
+#define PP_FLOW_HASH_TABLE_BUCKETS	4099
 
 enum PP_DECAP_RESULT {
 	/* packet successfull decapsulated and analysed */
@@ -56,6 +31,17 @@ enum PP_DECAP_RESULT {
 	/* l4 - protocol not supported */
 	PP_DECAP_L4_PROTO_UNKNOWN,
 	PP_DECPA_EOL
+};
+
+enum PP_OSI_LAYERS {
+	PP_OSI_LAYER_1 = 0,
+	PP_OSI_LAYER_2,
+	PP_OSI_LAYER_3,
+	PP_OSI_LAYER_4,
+	PP_OSI_LAYER_5,
+	PP_OSI_LAYER_6,
+	PP_OSI_LAYER_7,
+	PP_OSI_EOL
 };
 
 #endif /* __PP_COMMON_H */

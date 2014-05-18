@@ -10,4 +10,4 @@ execute_process(
 
 INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/packetprocessor)
 
-build_check_tests("${CMAKE_CURRENT_SOURCE_DIR}/../pp_fnct.c" "${CMAKE_CURRENT_SOURCE_DIR}/../libc_wrapper.c")
+build_check_tests("${CMAKE_CURRENT_SOURCE_DIR}/../pp_fnct.c" "${CMAKE_CURRENT_SOURCE_DIR}/../libc_wrapper.c" "${CMAKE_CURRENT_SOURCE_DIR}/../pp_flow.c")

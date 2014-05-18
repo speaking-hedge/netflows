@@ -25,24 +25,13 @@
 #include <string.h>
 #include <assert.h>
 
-enum PP_OSI_LAYERS {
-	PP_OSI_LAYER_1 = 0,
-	PP_OSI_LAYER_2,
-	PP_OSI_LAYER_3,
-	PP_OSI_LAYER_4,
-	PP_OSI_LAYER_5,
-	PP_OSI_LAYER_6,
-	PP_OSI_LAYER_7,
-	PP_OSI_EOL
-};
-
 /* packet information */
 struct pp_packet_context {
 
 	/* point to the packet data */
 	uint8_t *packet;
 
-	/* time we got the packet */
+	/* time we got the packet in usec */
 	uint64_t timestamp;
 
 	/* size in bytes l2..l7*/

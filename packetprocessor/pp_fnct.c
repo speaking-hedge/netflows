@@ -3,8 +3,10 @@
 /**
  * @brief init the given ctx
  * @param pp_ctx to initialize
+ * @retval 0 on success
+ * @retval 1 on error
  */
-void pp_init_ctx(struct pp_config *pp_ctx, void (*packet_handler)(struct pp_config *pp_ctx, uint8_t *data, uint16_t len, uint64_t timestamp)) {
+int pp_ctx_init(struct pp_config *pp_ctx, void (*packet_handler)(struct pp_config *pp_ctx, uint8_t *data, uint16_t len, uint64_t timestamp)) {
 
 	pp_ctx->action = PP_ACTION_UNDEFINED;
 
@@ -18,13 +20,27 @@ void pp_init_ctx(struct pp_config *pp_ctx, void (*packet_handler)(struct pp_conf
 	pp_ctx->processing_options = PP_PROC_OPT_NONE;
 
 	pp_ctx->bp_filter = NULL;
+
+	if (!(pp_ctx->flow_table = pp_flow_table_create(PP_FLOW_HASH_TABLE_BUCKETS,
+													NULL,
+													NULL))) {
+		return 1;
+	}
+
+	pp_ctx->unique_flows = 0;
+	pp_ctx->packets_seen = 0;
+	pp_ctx->packets_taken = 0;
+	pp_ctx->bytes_seen = 0;
+	pp_ctx->bytes_taken = 0;
+
+	return 0;
 }
 
 /**
  * @brief cleanup the pp context
  * @param pp_ctx to clean up
  */
-void pp_cleanup_ctx(struct pp_config *pp_ctx) {
+void pp_ctx_cleanup(struct pp_config *pp_ctx) {
 
 	free(pp_ctx->packet_source);
 	pp_ctx->packet_source = NULL;
@@ -44,6 +60,9 @@ void pp_cleanup_ctx(struct pp_config *pp_ctx) {
 	pp_ctx->job_id = NULL;
 
 	pp_live_shutdown(pp_ctx);
+
+	pp_flow_table_delete(pp_ctx->flow_table);
+	pp_ctx->flow_table = NULL;
 }
 
 /**
@@ -197,7 +216,7 @@ int pp_live_capture(struct pp_config *pp_ctx, volatile int *run, volatile int *d
 				clock_gettime(CLOCK_MONOTONIC, &ts);
 				inb = recvfrom(pp_ctx->packet_socket, buf, 9000, 0, (struct sockaddr*)&src_addr, &addr_len);
 				if (inb) {
-					pp_ctx->packet_handler_cb(pp_ctx, buf, inb, ts.tv_sec * 1000 + ts.tv_nsec/1000000);
+					pp_ctx->packet_handler_cb(pp_ctx, buf, inb, ts.tv_sec * 1000000 + ts.tv_nsec/1000);
 					/* NOTE: packet direction -> src_addr.sll_pkttype, see man packet */
 				}
 		} /* __poll */
@@ -335,4 +354,42 @@ int pp_create_hash(struct pp_config *pp_ctx, char **hash) {
 	gcry_md_close(hd);
 
 	return 0;
+}
+
+/**
+ * @brief get printable name for requested protocol@given layer
+ * @param layer the protocol is located on
+ * @param protocol the name is requested for
+ * @param buf [out] points to a buffer to place the string onto
+ * @param buf_len is the size of the buffer
+ * @retval 0 on success
+ * @retval 1 on failure, the string "unknown" is placed into buf
+ */
+int pp_get_proto_name(uint layer, uint32_t protocol, char* buf, size_t buf_len) {
+
+	switch (layer) {
+	case PP_OSI_LAYER_3:
+		switch(protocol) {
+		case ETH_P_IP:
+			strncpy(buf, "IPv4", buf_len);
+			return 0;
+		case ETH_P_IPV6:
+			strncpy(buf, "IPv6", buf_len);
+			return 0;
+		}
+		break;
+	case PP_OSI_LAYER_4:
+		switch(protocol) {
+		case IPPROTO_TCP:
+			strncpy(buf, "TCP", buf_len);
+			return 0;
+		case IPPROTO_UDP:
+			strncpy(buf, "UDP", buf_len);
+			return 0;
+		}
+		break;
+	}
+
+	strncpy(buf, "unknown", buf_len);
+	return 1;
 }

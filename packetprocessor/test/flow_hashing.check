@@ -1,0 +1,71 @@
+#include <pp.h>
+
+#suite flow_handling
+
+#test ipv4_twisted_src_dst_keys_equal
+
+	struct pp_packet_context p_ctx_a, p_ctx_b;
+	uint32_t key_a, key_b;
+	int err;
+
+	p_ctx_a.protocols[PP_OSI_LAYER_3] = ETH_P_IP;
+	p_ctx_b.protocols[PP_OSI_LAYER_3] = ETH_P_IP;
+
+	ck_assert_msg( 1 == inet_pton(AF_INET, "141.56.162.1", &p_ctx_a.src_addr.v4.s_addr), "ipv4 - inet_pton() failed");
+	ck_assert_msg( 1 == inet_pton(AF_INET, "186.91.87.221", &p_ctx_a.dst_addr.v4.s_addr), "ipv4 - inet_pton() failed");
+
+	ck_assert_msg( 1 == inet_pton(AF_INET, "186.91.87.221", &p_ctx_b.src_addr.v4.s_addr), "ipv4 - inet_pton() failed");
+	ck_assert_msg( 1 == inet_pton(AF_INET, "141.56.162.1", &p_ctx_b.dst_addr.v4.s_addr), "ipv4 - inet_pton() failed");
+
+	p_ctx_a.src_port = 54321;
+	p_ctx_a.dst_port = 12489;
+
+	p_ctx_b.src_port = 12489;
+	p_ctx_b.dst_port = 54321;
+
+	key_a = __pp_flow_fold_addresses(&p_ctx_a, &err);
+	ck_assert_msg(err == 0, "ipv4 - __pp_flow_hash_key(p_ctx_a) failed.");
+
+	key_b = __pp_flow_fold_addresses(&p_ctx_b, &err);
+	ck_assert_msg(err == 0, "ipv4 - __pp_flow_hash_key(p_ctx_b) failed.");
+
+	ck_assert_msg(key_a == key_b, "ipv4 - keys not equal");
+
+#ifdef PP_DEBUG
+	printf("ipv4 - key_a:%u\n", key_a);
+	printf("ipv4 - key_b:%u\n", key_b);
+#endif
+
+#test ipv6_twisted_src_dst_keys_equal
+
+	struct pp_packet_context p_ctx_a, p_ctx_b;
+	uint32_t key_a, key_b;
+	int err;
+
+	p_ctx_a.protocols[PP_OSI_LAYER_3] = ETH_P_IPV6;
+	p_ctx_b.protocols[PP_OSI_LAYER_3] = ETH_P_IPV6;
+
+	ck_assert_msg( 1 == inet_pton(AF_INET6, "2001:4860:4860::8888", &p_ctx_a.src_addr.v6), "ipv6 - inet_pton() failed");
+	ck_assert_msg( 1 == inet_pton(AF_INET6, "2a00:1328:e102:ccc0::122", &p_ctx_a.dst_addr.v6), "ipv6 - inet_pton() failed");
+
+	ck_assert_msg( 1 == inet_pton(AF_INET6, "2a00:1328:e102:ccc0::122", &p_ctx_b.src_addr.v6), "ipv6 - inet_pton() failed");
+	ck_assert_msg( 1 == inet_pton(AF_INET6, "2001:4860:4860::8888", &p_ctx_b.dst_addr.v6), "ipv6 - inet_pton() failed");
+
+	p_ctx_a.src_port = 54321;
+	p_ctx_a.dst_port = 12489;
+
+	p_ctx_b.src_port = 12489;
+	p_ctx_b.dst_port = 54321;
+
+	key_a = __pp_flow_fold_addresses(&p_ctx_a, &err);
+	ck_assert_msg(err == 0, "ipv4 - __pp_flow_hash_key(p_ctx_a) failed.");
+
+	key_b = __pp_flow_fold_addresses(&p_ctx_b, &err);
+	ck_assert_msg(err == 0, "ipv4 - __pp_flow_hash_key(p_ctx_b) failed.");
+
+	ck_assert_msg(key_a == key_b, "ipv4 - keys not equal");
+
+#ifdef PP_DEBUG
+	printf("ipv6 - key_a:%u\n", key_a);
+	printf("ipv6 - key_b:%u\n", key_b);
+#endif

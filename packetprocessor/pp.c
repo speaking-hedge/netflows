@@ -7,6 +7,7 @@ static void __pp_set_action(struct pp_config *pp_ctx, enum pp_action action, cha
 static int __pp_run_pcap_file(struct pp_config *pp_ctx);
 static int __pp_run_live(struct pp_config *pp_ctx);
 static void __pp_packet_handler(struct pp_config *pp_ctx, uint8_t *data, uint16_t len, uint64_t ts);
+static void __pp_ctx_dump(struct pp_config *pp_ctx);
 
 int main(int argc, char **argv) {
 
@@ -18,10 +19,13 @@ int main(int argc, char **argv) {
 	signal(SIGTERM, &pp_catch_term);
 	signal(SIGUSR1, &pp_catch_dump);
 
-	pp_init_ctx(&pp_ctx, &__pp_packet_handler);
+	if(pp_ctx_init(&pp_ctx, &__pp_packet_handler)) {
+		fprintf(stderr, "failed to init packet processor. abort.\n");
+		return 1;
+	}
 
 	if(pp_parse_cmd_line(argc, argv, &pp_ctx)) {
-		pp_cleanup_ctx(&pp_ctx);
+		pp_ctx_cleanup(&pp_ctx);
 		return 1;
 	}
 
@@ -45,7 +49,10 @@ int main(int argc, char **argv) {
 			rc = 1;
 	}
 
-	pp_cleanup_ctx(&pp_ctx);
+	pp_flow_table_dump(pp_ctx.flow_table);
+	__pp_ctx_dump(&pp_ctx);
+
+	pp_ctx_cleanup(&pp_ctx);
 
 	return rc;
 }
@@ -63,6 +70,11 @@ static void __pp_packet_handler(struct pp_config *pp_ctx,
 							uint64_t ts) {
 
 	struct pp_packet_context pkt_ctx;
+	struct pp_flow *flow = NULL;
+	int is_new = 0;
+
+	pp_ctx->packets_seen++;
+	pp_ctx->bytes_seen += len;
 
 	if (pp_ctx->bp_filter && !bpf_filter(pp_ctx->bp_filter, data, len, len)) {
 		return;
@@ -71,8 +83,20 @@ static void __pp_packet_handler(struct pp_config *pp_ctx,
 	switch(pp_decap(data, len, ts, &pkt_ctx, pp_ctx->bp_filter)) {
 	case PP_DECAP_OKAY:
 		/* TODO: flow handling */
-		/* TODO: analyse */
-		pp_dump_packet(&pkt_ctx);
+		flow = pp_flow_table_get_flow(pp_ctx->flow_table,
+									  &pkt_ctx, &is_new);
+
+		if (flow) {
+			if (is_new) {
+				pp_ctx->unique_flows++;
+			}
+			pp_ctx->packets_taken++;
+			pp_ctx->bytes_taken += len;
+
+			/* TODO: analyse */
+
+			pp_dump_packet(&pkt_ctx);
+		}
 		break;
 #ifdef PP_DEBUG
 	case -PP_DECAP_L2_PROTO_UNKNOWN:
@@ -99,7 +123,7 @@ static int __pp_run_pcap_file(struct pp_config *pp_ctx) {
 	run = 1;
 	while (run && (pkt = pcap_next(pp_ctx->pcap_handle, &hdr))) {
 		if (hdr.caplen == hdr.len) {
-			pp_ctx->packet_handler_cb(pp_ctx, (uint8_t*)pkt, hdr.caplen, (hdr.ts.tv_sec * 1000) + (hdr.ts.tv_usec / 1000));
+			pp_ctx->packet_handler_cb(pp_ctx, (uint8_t*)pkt, hdr.caplen, (hdr.ts.tv_sec * 1000000) + (hdr.ts.tv_usec));
 		}
 		if (dump) {
 			pp_dump_state(pp_ctx);
@@ -262,6 +286,20 @@ static void __pp_set_action(struct pp_config *pp_ctx, enum pp_action action, cha
 		fprintf(stderr, "failed to alloc memory while setting action. abort.\n");
 		exit(1);
 	}
+}
+
+/**
+ * @brief dump status data
+ * @param pp_ctx point to the context to be dumped
+ */
+static void __pp_ctx_dump(struct pp_config *pp_ctx) {
+
+	printf("-----------------------------------------\n");
+	printf("unique flows:   %d\n", pp_ctx->unique_flows);
+	printf("packets seen:   %" PRIu64 "\n", pp_ctx->packets_seen);
+	printf("packets taken:  %" PRIu64 "\n", pp_ctx->packets_taken);
+	printf("byte seen:      %" PRIu64 "\n", pp_ctx->bytes_seen);
+	printf("bytes taken:    %" PRIu64 "\n", pp_ctx->bytes_taken);
 }
 
 /**
