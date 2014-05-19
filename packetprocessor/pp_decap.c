@@ -194,7 +194,6 @@ static int __pp_decap_ipv6_options(uint32_t protocol, size_t *len, uint32_t *off
 			return __pp_decap_ipv6_options(frag_hdr->ip6f_nxt, len, offset, pkt_ctx);
 		case IPPROTO_ICMPV6:
 		case IPPROTO_NONE: /* no next header */
-		case IPPROTO_MH: /* mobile */
 		default:
 			return -PP_DECAP_L3_PROTO_UNKNOWN;
 	}
@@ -223,16 +222,16 @@ static int __pp_decap_l4(uint32_t protocol, size_t *len, uint32_t *offset, struc
 
 		pkt_ctx->protocols[PP_OSI_LAYER_4] = IPPROTO_TCP;
 		pkt_ctx->offsets[PP_OSI_LAYER_4] = *offset;
-		pkt_ctx->l4_meta.tcp.window_size = htons(tcp_hdr->th_win);
+		pkt_ctx->l4_meta.tcp.window_size = htons(tcp_hdr->window);
 		pkt_ctx->l4_meta.tcp.fin = tcp_hdr->fin;
 		pkt_ctx->l4_meta.tcp.syn = tcp_hdr->syn;
 		pkt_ctx->l4_meta.tcp.rst = tcp_hdr->rst;
 		pkt_ctx->l4_meta.tcp.ack = tcp_hdr->ack;
-		pkt_ctx->src_port = htons(tcp_hdr->th_sport);
-		pkt_ctx->dst_port = htons(tcp_hdr->th_dport);
+		pkt_ctx->src_port = htons(tcp_hdr->source);
+		pkt_ctx->dst_port = htons(tcp_hdr->dest);
 
-		*len -= tcp_hdr->th_off * 4;
-		*offset += tcp_hdr->th_off * 4;
+		*len -= tcp_hdr->doff * 4;
+		*offset += tcp_hdr->doff * 4;
 		return PP_DECAP_OKAY;
 	case IPPROTO_UDP:
 		if (*len < sizeof(struct udphdr)) {
@@ -242,8 +241,8 @@ static int __pp_decap_l4(uint32_t protocol, size_t *len, uint32_t *offset, struc
 
 		pkt_ctx->protocols[PP_OSI_LAYER_4] = IPPROTO_UDP;
 		pkt_ctx->offsets[PP_OSI_LAYER_4] = *offset;
-		pkt_ctx->src_port = htons(udp_hdr->uh_sport);
-		pkt_ctx->dst_port = htons(udp_hdr->uh_dport);
+		pkt_ctx->src_port = htons(udp_hdr->source);
+		pkt_ctx->dst_port = htons(udp_hdr->dest);
 
 		*len -= sizeof(struct udphdr);
 		*offset += sizeof(struct udphdr);

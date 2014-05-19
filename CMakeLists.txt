@@ -18,7 +18,13 @@ endif()
 
 # just call build_check_tests() to generate tests for current source dir
 # may be called with additional source files as parameter
-set(PROJECT_LINK_DEPENDENCIES pcap cap gcrypt rt dbus-1 pthread)
+# TODO: dpk-config --libs ... could solve this problem 
+execute_process(COMMAND sh -c "lsb_release -r | grep 14.04 | wc -l" OUTPUT_VARIABLE IS_UBUNTU_14.04)
+if ( 1 EQUAL ${IS_UBUNTU_14.04}) 
+	set(PROJECT_LINK_DEPENDENCIES pcap cap gcrypt rt pthread curl ${GENERATED_LIBS})
+else()
+	set(PROJECT_LINK_DEPENDENCIES pcap cap gcrypt rt dbus-1 pthread curl ${GENERATED_LIBS})
+endif()
 macro (build_check_tests)
 
 	file(GLOB_RECURSE TESTFILES "${CMAKE_CURRENT_SOURCE_DIR}" "*.check")
