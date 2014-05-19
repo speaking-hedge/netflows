@@ -34,7 +34,7 @@ int pp_ctx_init(struct pp_config *pp_ctx, void (*packet_handler)(struct pp_confi
 	pp_ctx->bytes_taken = 0;
 
 	pp_ctx->rest = 0;
-	pp_ctx->rest_url = NULL;
+	pp_ctx->rest_url = "localhost";
 
 	return 0;
 }
