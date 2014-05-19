@@ -256,9 +256,9 @@ inline uint32_t __pp_flow_fold_addresses(struct pp_packet_context *pkt_ctx, int 
 			key = pkt_ctx->src_addr.v4.s_addr ^ pkt_ctx->dst_addr.v4.s_addr;
 			tmp = pkt_ctx->src_port ^ pkt_ctx->dst_port;
 #if __BYTE_ORDER == __LITTLE_ENDIAN
-			tmp &= (tmp << 16);
+			tmp |= (tmp << 16);
 #elif __BYTE_ORDER == __BIG_ENDIAN
-			tmp &= (tmp >> 16);
+			tmp |= (tmp >> 16);
 #else
 #error "unknown byte order - are u using a quantum computer?"
 #endif
@@ -274,9 +274,9 @@ inline uint32_t __pp_flow_fold_addresses(struct pp_packet_context *pkt_ctx, int 
 			key ^= pkt_ctx->src_addr.v6.s6_addr32[3] ^ pkt_ctx->dst_addr.v6.s6_addr32[3];
 			tmp = pkt_ctx->src_port ^ pkt_ctx->dst_port;
 #if __BYTE_ORDER == __LITTLE_ENDIAN
-			tmp &= (tmp << 16);
+			tmp |= (tmp << 16);
 #elif __BYTE_ORDER == __BIG_ENDIAN
-			tmp &= (tmp >> 16);
+			tmp |= (tmp >> 16);
 #else
 #error "unknown byte order - are u using a quantum computer?"
 #endif
