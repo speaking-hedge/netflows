@@ -13,8 +13,21 @@ EXTERNALPROJECT_ADD(libpcap.a
 INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/lib/${LIBPCAP_SRC}/)
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/)
 SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DPPSHA=\\\"${GIT_SHA}\\\" -DPPCOMMITS=${REPO_COMMIT_COUNT}")
-ADD_EXECUTABLE (packet-processor-static pp.c libc_wrapper.c pp_fnct.c pp_decap.c pp_flow.c pp_rest.c)
+ADD_EXECUTABLE (packet-processor-static pp.c libc_wrapper.c pp_fnct.c pp_decap.c pp_flow.c pp_rest.c pp_analyser.c)
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--wrap=memcpy -static-libgcc")
+
+# link in available analysers
+file(GLOB sub-dir ${CMAKE_CURRENT_SOURCE_DIR}/analyser/*)
+foreach(dir ${sub-dir})
+    if(IS_DIRECTORY ${dir})
+		# there is at least one header file in each subfolder
+		INCLUDE_DIRECTORIES(${dir})
+		file(GLOB analyser_source ${dir}/*.c)
+		get_filename_component(analyser_name ${analyser_source} NAME_WE)
+		ADD_LIBRARY(${analyser_name} STATIC ${analyser_source})
+		TARGET_LINK_LIBRARIES(packet-processor-static ${analyser_name})
+    endif()
+endforeach()
 
 # add libpcap
 ADD_LIBRARY(pcap STATIC IMPORTED)

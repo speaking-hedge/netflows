@@ -47,6 +47,10 @@ struct pp_config {
 
 	int rest;
 	char *rest_url;
+
+	/* packet analysers available */
+	struct pp_analyser *pp_analysers;
+	int pp_analyser_num;
 };
 
 #endif /* __PP_CONTEXT */

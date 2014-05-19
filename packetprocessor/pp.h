@@ -9,6 +9,9 @@
 #include <pp_context.h>
 #include <pp_fnct.h>
 #include <pp_decap.h>
+#include <pp_analyser.h>
+
+#include <pp_window_size.h>
 
 
 #define PPVERSION "0.1"

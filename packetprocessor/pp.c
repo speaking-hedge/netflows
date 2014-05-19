@@ -76,6 +76,7 @@ static void __pp_packet_handler(struct pp_config *pp_ctx,
 	struct pp_packet_context pkt_ctx;
 	struct pp_flow *flow = NULL;
 	int is_new = 0;
+	int a = 0;
 
 	pp_ctx->packets_seen++;
 	pp_ctx->bytes_seen += len;
@@ -93,11 +94,27 @@ static void __pp_packet_handler(struct pp_config *pp_ctx,
 		if (flow) {
 			if (is_new) {
 				pp_ctx->unique_flows++;
+
+				/* attach and init analysers */
+				if (!(flow->analyser_data = calloc(1, sizeof(void *)))) {
+					/* TODO: error handling */
+					return;
+				}
+
+				/* init flow local data for each analyser */
+				for (a = 0; a < pp_ctx->pp_analyser_num; a++) {
+					pp_ctx->pp_analysers[a].init(pp_ctx->pp_analysers[a].idx, flow);
+				}
+
 			}
 			pp_ctx->packets_taken++;
 			pp_ctx->bytes_taken += len;
 
-			/* TODO: analyse */
+			/* run selected analysers */
+			for (a = 0; a < pp_ctx->pp_analyser_num; a++) {
+				pp_ctx->pp_analysers[a].collect(pp_ctx->pp_analysers[a].idx, &pkt_ctx, flow);
+			}
+
 			if (pp_ctx->processing_options & PP_PROC_OPT_DUMP_EACH_PACKET)
 				pp_dump_packet(&pkt_ctx);
 		}
@@ -188,13 +205,14 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
 		{"dump-flows", 0, NULL, 'F'},
 		{"dump-table-stats", 0, NULL, 'T'},
 		{"dump-packet-processor-stats", 0, NULL, 'p'},
+		{"analyse-window-size",0 , NULL, 'w'},
 		{NULL, 0, NULL, 0}
 	};
 	int opt = 0, i = 0;
 	char *endptr = NULL;
 
     while(1) {
-		opt = getopt_long(argc, argv, "hva:l:c:o:jf:J:rsPFTp", options, NULL);
+		opt = getopt_long(argc, argv, "hva:l:c:o:jf:J:rsPFTpw", options, NULL);
 		if (opt == -1)
 			break;
 
@@ -270,6 +288,17 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
 					fprintf(stderr, "failed to alloc memory for rest url. abort.\n");
 					exit(1);
 				}
+				break;
+			case 'w': /* analyse window size */
+				pp_register_analyser(pp_ctx,
+									 &pp_window_size_collect,
+									 &pp_window_size_analyse,
+									 &pp_window_size_report,
+									 &pp_window_size_describe,
+									 &pp_window_size_init,
+									 &pp_window_size_destroy,
+									 NULL);
+				pp_ctx->pp_analyser_num++;
 				break;
 			default:
 				abort();

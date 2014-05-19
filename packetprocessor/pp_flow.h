@@ -53,7 +53,7 @@ struct pp_flow {
 	struct pp_flow_endpoint ep_a;
 
 	/* dest of the first packet seen for the flow
-	* direction dst -> src => downstream
+	 * direction dst -> src => downstream
 	 */
 	struct pp_flow_endpoint ep_b;
 
@@ -62,6 +62,11 @@ struct pp_flow {
 
 	/* last time we got a packet for the flow in usec */
 	uint64_t last_seen;
+
+	/* analysers per flow data storage */
+	void **analyser_data;
+	/* count number of analyser_data entries */
+	int analyser_data_num;
 };
 
 struct pp_flow_table {
