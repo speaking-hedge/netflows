@@ -24,8 +24,12 @@ struct pp_config {
 	void (*packet_handler_cb)(struct pp_config *pp_ctx, uint8_t *data, uint16_t len, uint64_t timestamp);
 
 	enum {
-		PP_PROC_OPT_NONE = 0,
-		PP_PROC_OPT_CREATE_HASH = 1<<0,
+		PP_PROC_OPT_NONE             = 0,
+		PP_PROC_OPT_CREATE_HASH      = 1<<0,
+		PP_PROC_OPT_DUMP_EACH_PACKET = 1<<1,
+		PP_PROC_OPT_DUMP_FLOWS       = 1<<2,
+		PP_PROC_OPT_DUMP_TABLE_STATS = 1<<3,
+		PP_PROC_OPT_DUMP_PP_STATS    = 1<<4,
 		PP_PROC_OPT_EOL
 	} processing_options;
 

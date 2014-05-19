@@ -343,3 +343,54 @@ void pp_flow_table_dump(struct pp_flow_table *table) {
 	}
 }
 
+/**
+ * @brief dump flows table stats
+ * @param table to show the stats for
+ */
+void pp_flow_table_stats(struct pp_flow_table *table) {
+
+	/* TODO: apply locking */
+	int b = 0;
+	struct pp_flow *cur_flow, *next_flow;
+
+	/* buckets of the table in use */
+	uint32_t buckets_used = 0;
+	/* maximum chain size per bucket */
+	uint32_t bucket_global_max_size = 0;
+	/* minimum chain size > 0 per bucket */
+	uint32_t bucket_global_min_size = UINT32_MAX;
+	/* chain size of current bucket */
+	uint32_t bucket_local_size = 0;
+	/* number of elements in all buckets */
+	uint32_t global_size = 0;
+
+	for (b = 0; b < table->size; b++) {
+		if (table->buckets[b] != NULL) {
+			buckets_used++;
+			cur_flow = table->buckets[b];
+			bucket_local_size = 0;
+
+			do {
+				bucket_local_size++;
+				cur_flow = cur_flow->next_flow;
+			} while (cur_flow);
+
+			bucket_global_max_size = bucket_local_size>bucket_global_max_size?bucket_local_size:bucket_global_max_size;
+			if (bucket_local_size < bucket_global_min_size && bucket_local_size >= 1) {
+				bucket_global_min_size = bucket_local_size;
+			}
+			global_size += bucket_local_size;
+		}
+	}
+	printf("----------------------------------------------\n");
+	if (buckets_used) {
+		printf("buckets used:     %u\n", buckets_used);
+		printf("alpha:            %f\n", (double)global_size/table->size);
+		printf("avg bucket size:  %f\n", (double)global_size/buckets_used);
+		printf("min bucket size:  %u\n", bucket_global_min_size);
+		printf("max bucket size:  %u\n", bucket_global_max_size);
+	} else {
+		printf("no flow captured\n");
+	}
+}
+

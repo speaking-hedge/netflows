@@ -49,8 +49,12 @@ int main(int argc, char **argv) {
 			rc = 1;
 	}
 
-	pp_flow_table_dump(pp_ctx.flow_table);
-	__pp_ctx_dump(&pp_ctx);
+	if (pp_ctx.processing_options & PP_PROC_OPT_DUMP_FLOWS)
+		pp_flow_table_dump(pp_ctx.flow_table);
+	if (pp_ctx.processing_options & PP_PROC_OPT_DUMP_TABLE_STATS)
+		pp_flow_table_stats(pp_ctx.flow_table);
+	if (pp_ctx.processing_options & PP_PROC_OPT_DUMP_PP_STATS)
+		__pp_ctx_dump(&pp_ctx);
 
 	pp_ctx_cleanup(&pp_ctx);
 
@@ -94,8 +98,8 @@ static void __pp_packet_handler(struct pp_config *pp_ctx,
 			pp_ctx->bytes_taken += len;
 
 			/* TODO: analyse */
-
-			pp_dump_packet(&pkt_ctx);
+			if (pp_ctx->processing_options & PP_PROC_OPT_DUMP_EACH_PACKET)
+				pp_dump_packet(&pkt_ctx);
 		}
 		break;
 #ifdef PP_DEBUG
@@ -180,13 +184,17 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
 		{"bp-filter", 1, NULL, 'f'},
 		{"rest", 0, NULL, 'r'},
 		{"rest-server", 1, NULL, 's'},
+		{"dump-packets", 0, NULL, 'P'},
+		{"dump-flows", 0, NULL, 'F'},
+		{"dump-table-stats", 0, NULL, 'T'},
+		{"dump-packet-processor-stats", 0, NULL, 'p'},
 		{NULL, 0, NULL, 0}
 	};
 	int opt = 0, i = 0;
 	char *endptr = NULL;
 
     while(1) {
-		opt = getopt_long(argc, argv, "hva:l:c:o:jf:J:rs:", options, NULL);
+		opt = getopt_long(argc, argv, "hva:l:c:o:jf:J:rsPFTp", options, NULL);
 		if (opt == -1)
 			break;
 
@@ -244,13 +252,25 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
 			case 'r':
 				pp_ctx->rest = 1;
 				break;
+			case 'P':
+				pp_ctx->processing_options |= PP_PROC_OPT_DUMP_EACH_PACKET;
+				break;
+			case 'F':
+				pp_ctx->processing_options |= PP_PROC_OPT_DUMP_FLOWS;
+				break;
+			case 'T':
+				pp_ctx->processing_options |= PP_PROC_OPT_DUMP_TABLE_STATS;
+				break;
+			case 'p':
+				pp_ctx->processing_options |= PP_PROC_OPT_DUMP_PP_STATS;
+				break;
 			case 's':
-                                free(pp_ctx->rest_url);
-                                if(!(pp_ctx->rest_url = strdup(optarg))) {
-                                        fprintf(stderr, "failed to alloc memory for rest url. abort.\n");
-                                        exit(1);
-                                }
-                                break;
+				free(pp_ctx->rest_url);
+				if(!(pp_ctx->rest_url = strdup(optarg))) {
+					fprintf(stderr, "failed to alloc memory for rest url. abort.\n");
+					exit(1);
+				}
+				break;
 			default:
 				abort();
 		}
@@ -351,5 +371,10 @@ void pp_usage(void) {
 	printf("                        appended to the filename\n");
 	printf("\n");
 	printf("-r --rest               enable REST communication\n");
-        printf("-s --rest-server <url>  specifiy REST URL (default: localhost:80)\n");
+	printf("-s --rest-server <url>  specifiy REST URL (default: localhost:80)\n");
+	printf("\n");
+	printf("-P --dump-packets       dump each packet (time consuming!)\n");
+	printf("-F --dump-flows         dump all flows at exit\n");
+	printf("-T --dump-table-stats   dump flow table stats at exit\n");
+	printf("-p --dump-pp-stats      dump packet processor stats at exit\n");
 }
