@@ -39,6 +39,9 @@ struct pp_config {
 	uint64_t packets_taken;
 	uint64_t bytes_seen;
 	uint64_t bytes_taken;
+
+	int rest;
+	char *rest_url;
 };
 
 #endif /* __PP_CONTEXT */

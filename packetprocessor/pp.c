@@ -178,13 +178,15 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
 		{"gen-job-id", 0, NULL, 'j'},
 		{"job-id", 1, NULL, 'J'},
 		{"bp-filter", 1, NULL, 'f'},
+		{"rest", 0, NULL, 'r'},
+		{"rest-server", 1, NULL, 's'},
 		{NULL, 0, NULL, 0}
 	};
 	int opt = 0, i = 0;
 	char *endptr = NULL;
 
     while(1) {
-		opt = getopt_long(argc, argv, "hva:l:c:o:jf:J:", options, NULL);
+		opt = getopt_long(argc, argv, "hva:l:c:o:jf:J:rs:", options, NULL);
 		if (opt == -1)
 			break;
 
@@ -239,6 +241,16 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
 				}
 				pp_ctx->bp_filter = bpfp.bf_insns;
 				break;
+			case 'r':
+				pp_ctx->rest = 1;
+				break;
+			case 's':
+                                free(pp_ctx->rest_url);
+                                if(!(pp_ctx->rest_url = strdup(optarg))) {
+                                        fprintf(stderr, "failed to alloc memory for rest url. abort.\n");
+                                        exit(1);
+                                }
+                                break;
 			default:
 				abort();
 		}
@@ -337,4 +349,7 @@ void pp_usage(void) {
 	printf("                        for dumps requested while the analyser\n");
 	printf("                        is still running, an increasing nummber is\n");
 	printf("                        appended to the filename\n");
+	printf("\n");
+	printf("-r --rest               enable REST communication\n");
+        printf("-s --rest-server <url>  specifiy REST URL (default: localhost:80)\n");
 }
