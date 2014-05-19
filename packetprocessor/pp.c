@@ -250,7 +250,7 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
 				pp_ctx->bp_filter = bpfp.bf_insns;
 				break;
 			case 'r':
-				pp_ctx->rest = 1;
+				pp_ctx->processing_options |= PP_PROC_OPT_USE_REST;
 				break;
 			case 'P':
 				pp_ctx->processing_options |= PP_PROC_OPT_DUMP_EACH_PACKET;

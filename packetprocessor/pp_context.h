@@ -30,6 +30,7 @@ struct pp_config {
 		PP_PROC_OPT_DUMP_FLOWS       = 1<<2,
 		PP_PROC_OPT_DUMP_TABLE_STATS = 1<<3,
 		PP_PROC_OPT_DUMP_PP_STATS    = 1<<4,
+		PP_PROC_OPT_USE_REST         = 1<<5,
 		PP_PROC_OPT_EOL
 	} processing_options;
 

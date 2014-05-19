@@ -6,7 +6,7 @@
  * @retval 0 on success
  * @retval 1 on error
  */
-static int __rest_send(const char* url)
+static int __pp_rest_send(const char* url)
 {
 	CURL *rest = curl_easy_init();
 
@@ -21,7 +21,7 @@ static int __rest_send(const char* url)
 
 	/* tidy up */
 	curl_easy_cleanup(rest);
-	
+
 	/* check for errors */
 	if(result != CURLE_OK) {
 		fprintf(stderr, "REST connection failed: %s\n", curl_easy_strerror(result));
@@ -34,13 +34,13 @@ static int __rest_send(const char* url)
 
 /**
  * @brief set job state to running
- * @param url url to connect to
+ * @param url to connect to
  * @param job_hash id of the job
  * @param state job state //TODO: Is there an ENUM yet?
  * @retval 0 on success
  * @retval 1 on error
  */
-int rest_job_state(const char* url, const char* job_hash, const char state)
+int pp_rest_job_state(const char* url, const char* job_hash, const char state)
 {
 	if (state > 6 || state < 0) return 1; // invalid state id
 
@@ -51,11 +51,11 @@ int rest_job_state(const char* url, const char* job_hash, const char state)
 	char msg[strlen(url) + strlen(suffix) + strlen(param_stateid) + strlen(param_jobid) + strlen(job_hash) + 1];
 
 	param_stateid[8] = (char)(48+state); // cheap convert
-	
+
 	strcpy(msg, url);
 	strcat(msg, suffix);
 	strcat(msg, param_stateid);
 	strcat(msg, param_jobid);
 	strcat(msg, job_hash);
-	return __rest_send(msg);
+	return __pp_rest_send(msg);
 }
