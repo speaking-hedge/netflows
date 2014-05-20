@@ -87,7 +87,9 @@ static void __pp_packet_handler(struct pp_config *pp_ctx,
 
 	switch(pp_decap(data, len, ts, &pkt_ctx, pp_ctx->bp_filter)) {
 	case PP_DECAP_OKAY:
-		/* TODO: flow handling */
+		/* get flow for current packet and updates flow local counter
+		 * and the packet direction attribute of the packet context
+		 */
 		flow = pp_flow_table_get_flow(pp_ctx->flow_table,
 									  &pkt_ctx, &is_new);
 

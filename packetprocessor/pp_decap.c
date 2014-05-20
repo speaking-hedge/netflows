@@ -30,6 +30,7 @@ enum PP_DECAP_RESULT pp_decap(uint8_t *data, size_t len, uint64_t ts, struct pp_
 	memset(pkt_ctx->offsets, 0, sizeof(pkt_ctx->offsets));
 	memset(&pkt_ctx->src_addr.v6, 0, sizeof(pkt_ctx->src_addr.v6));
 	memset(&pkt_ctx->dst_addr.v6, 0, sizeof(pkt_ctx->src_addr.v6));
+	pkt_ctx->direction = PP_PKT_DIR_UNKNOWN;
 
 	if ((rc_proto = __pp_decap_l2(0, &len, &offset, pkt_ctx)) >= 0 ) {
 		if ((rc_proto = __pp_decap_l3(rc_proto, &len, &offset, pkt_ctx)) >= 0) {

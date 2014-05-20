@@ -56,6 +56,7 @@ struct pp_flow_table* pp_flow_table_create(uint32_t size,
 
 /**
  * @brief update flow using data from packet context
+ * @note also sets the packet direction in pkt_ctx
  * @param flow points to the flow to be updated
  * @param pkt_ctx points to the packet used for the update
  */
@@ -67,10 +68,12 @@ static inline void __pp_flow_update(struct pp_flow *flow, struct pp_packet_conte
 		/* upstream */
 		flow->data_upstream.packets++;
 		flow->data_upstream.bytes += pkt_ctx->length;
+		pkt_ctx->direction = PP_PKT_DIR_UPSTREAM;
 	} else {
 		/* downstream */
 		flow->data_downstream.packets++;
 		flow->data_downstream.bytes += pkt_ctx->length;
+		pkt_ctx->direction = PP_PKT_DIR_DOWNSTREAM;
 	}
 	flow->data_cum.packets++;
 	flow->data_cum.bytes += pkt_ctx->length;
@@ -182,7 +185,7 @@ struct pp_flow* pp_flow_table_get_flow(struct pp_flow_table *table,
 		cur_flow = table->buckets[bucket];
 		do {
 			if (0 == __pp_flow_table_compare(table->buckets[bucket], pkt_ctx)) {
-
+				/* flow allready known */
 				__pp_flow_update(table->buckets[bucket], pkt_ctx);
 				*is_new_flow = 0;
 				return table->buckets[bucket];

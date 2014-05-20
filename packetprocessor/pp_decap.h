@@ -81,6 +81,14 @@ struct pp_packet_context {
 	/* src/dst ports */
 	in_port_t       src_port;
 	in_port_t       dst_port;
+	
+	/* determined by flow */
+	enum {
+		PP_PKT_DIR_UNKNOWN = 0,
+		PP_PKT_DIR_UPSTREAM,
+		PP_PKT_DIR_DOWNSTREAM,
+		PP_PKT_DIR_EOL
+	} direction;
 };
 
 #ifdef __GNUC__
