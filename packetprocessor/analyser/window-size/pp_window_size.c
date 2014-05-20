@@ -44,16 +44,20 @@ void pp_window_size_init(uint32_t idx, struct pp_flow *flow_ctx, enum PP_ANALYSE
 
 	pp_wnd_sz_data->mode = mode;
 	pp_wnd_sz_data->mode = mode_val;
-	if (mode_val == PP_ANALYSER_MODE_PACKETCOUNT) {
+	switch(mode_val) {
+	case PP_ANALYSER_MODE_PACKETCOUNT:
 		pp_wnd_sz_data->data = calloc(mode_val, sizeof(struct __pp_window_size_data ));
 		pp_wnd_sz_data->available_slots = mode_val;
-	} else {
+		break;
+	case PP_ANALYSER_MODE_TIMESPAN:
+	case PP_ANALYSER_MODE_INFINITY:
+		/* start with PP_WINDOW_SIZE_SLOT_STEP elements */
 		pp_wnd_sz_data->data = calloc(PP_WINDOW_SIZE_SLOT_STEP, sizeof(struct __pp_window_size_data ));
 		pp_wnd_sz_data->available_slots = PP_WINDOW_SIZE_SLOT_STEP;
+		break;
 	}
 
 	pp_wnd_sz_data->used_slots = 0;
-
 }
 
 /* free all data */
