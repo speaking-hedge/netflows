@@ -33,9 +33,7 @@ int pp_ctx_init(struct pp_config *pp_ctx, void (*packet_handler)(struct pp_confi
 	pp_ctx->bytes_seen = 0;
 	pp_ctx->bytes_taken = 0;
 
-	if(!(pp_ctx->rest_url = strdup("localhost"))) {
-		return 1;
-	}
+	pp_ctx->rest_backend_url = NULL;
 
 	pp_ctx->pp_analysers = NULL;
 	pp_ctx->pp_analyser_num = 0;
@@ -71,8 +69,8 @@ void pp_ctx_cleanup(struct pp_config *pp_ctx) {
 	pp_flow_table_delete(pp_ctx->flow_table);
 	pp_ctx->flow_table = NULL;
 
-	free(pp_ctx->rest_url);
-	pp_ctx->rest_url = NULL;
+	free(pp_ctx->rest_backend_url);
+	pp_ctx->rest_backend_url = NULL;
 }
 
 /**

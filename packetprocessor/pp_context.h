@@ -45,8 +45,7 @@ struct pp_config {
 	uint64_t bytes_seen;
 	uint64_t bytes_taken;
 
-	int rest;
-	char *rest_url;
+	char *rest_backend_url;
 
 	/* packet analysers available */
 	struct pp_analyser *pp_analysers;

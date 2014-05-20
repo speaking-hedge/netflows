@@ -192,15 +192,14 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
 	struct option options[] = {
 		{"help", 0, NULL, 'h'},
 		{"version", 0, NULL, 'v'},
-		{"analyse", 1, NULL, 'a'},
-		{"live-analyse", 1, NULL, 'l'},
-		{"check", 1, NULL, 'c'},
-		{"output", 1, NULL, 'o'},
+		{"analyse", required_argument, NULL, 'a'},
+		{"live-analyse", required_argument, NULL, 'l'},
+		{"check", required_argument, NULL, 'c'},
+		{"output", required_argument, NULL, 'o'},
 		{"gen-job-id", 0, NULL, 'j'},
-		{"job-id", 1, NULL, 'J'},
-		{"bp-filter", 1, NULL, 'f'},
-		{"rest", 0, NULL, 'r'},
-		{"rest-server", 1, NULL, 's'},
+		{"job-id", required_argument, NULL, 'J'},
+		{"bp-filter", required_argument, NULL, 'f'},
+		{"rest-backend", optional_argument, NULL, 'r'},
 		{"dump-packets", 0, NULL, 'P'},
 		{"dump-flows", 0, NULL, 'F'},
 		{"dump-table-stats", 0, NULL, 'T'},
@@ -211,8 +210,8 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
 	int opt = 0, i = 0;
 	char *endptr = NULL;
 
-    while(1) {
-		opt = getopt_long(argc, argv, "hva:l:c:o:jf:J:rsPFTpw", options, NULL);
+	while(1) {
+		opt = getopt_long(argc, argv, "hva:l:c:o:jf:J:r::PFTpw", options, NULL);
 		if (opt == -1)
 			break;
 
@@ -267,9 +266,6 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
 				}
 				pp_ctx->bp_filter = bpfp.bf_insns;
 				break;
-			case 'r':
-				pp_ctx->processing_options |= PP_PROC_OPT_USE_REST;
-				break;
 			case 'P':
 				pp_ctx->processing_options |= PP_PROC_OPT_DUMP_EACH_PACKET;
 				break;
@@ -282,12 +278,20 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
 			case 'p':
 				pp_ctx->processing_options |= PP_PROC_OPT_DUMP_PP_STATS;
 				break;
-			case 's':
-				free(pp_ctx->rest_url);
-				if(!(pp_ctx->rest_url = strdup(optarg))) {
-					fprintf(stderr, "failed to alloc memory for rest url. abort.\n");
-					exit(1);
+			case 'r':
+				free(pp_ctx->rest_backend_url);
+				if (!optarg) {
+					if(!(pp_ctx->rest_backend_url = strdup("localhost:80"))) {
+						fprintf(stderr, "failed to alloc memory for rest default url. abort.\n");
+						exit(1);
+					}
+				} else {
+					if(!(pp_ctx->rest_backend_url = strdup(optarg))) {
+						fprintf(stderr, "failed to alloc memory for rest url. abort.\n");
+						exit(1);
+					}
 				}
+				pp_ctx->processing_options |= PP_PROC_OPT_USE_REST;
 				break;
 			case 'w': /* analyse window size */
 				pp_register_analyser(pp_ctx,
@@ -361,6 +365,7 @@ static void __pp_ctx_dump(struct pp_config *pp_ctx) {
 	printf("packets taken:  %" PRIu64 "\n", pp_ctx->packets_taken);
 	printf("byte seen:      %" PRIu64 "\n", pp_ctx->bytes_seen);
 	printf("bytes taken:    %" PRIu64 "\n", pp_ctx->bytes_taken);
+	printf("rest backend:   %s\n", pp_ctx->processing_options & PP_PROC_OPT_USE_REST?pp_ctx->rest_backend_url:"disabled");
 }
 
 /**
@@ -399,8 +404,8 @@ void pp_usage(void) {
 	printf("                        is still running, an increasing nummber is\n");
 	printf("                        appended to the filename\n");
 	printf("\n");
-	printf("-r --rest               enable REST communication\n");
-	printf("-s --rest-server <url>  specifiy REST URL (default: localhost:80)\n");
+	printf("-r<URL>                 use REST backend at given URL\n");
+	printf("--rest-backend=<URL>    (default: localhost:80)\n");
 	printf("\n");
 	printf("-P --dump-packets       dump each packet (time consuming!)\n");
 	printf("-F --dump-flows         dump all flows at exit\n");
