@@ -4,9 +4,6 @@
 #include <stdint.h>
 #include <time.h>
 
-#include <pp_context.h>
-#include <pp_common.h>
-
 #include <pp_decap.h>
 
 struct pp_ip {

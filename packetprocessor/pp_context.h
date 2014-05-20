@@ -1,8 +1,9 @@
 #ifndef __PP_CONTEXT
 #define __PP_CONTEXT
 
-#include <pp_common.h>
+#include <pp_analyser.h>
 #include <pp_flow.h>
+
 
 struct pp_config {
 
@@ -50,6 +51,9 @@ struct pp_config {
 	/* packet analysers available */
 	struct pp_analyser *pp_analysers;
 	int pp_analyser_num;
+
+	enum PP_ANALYSER_MODES analyser_mode;
+	uint32_t analyser_mode_val;
 };
 
 #endif /* __PP_CONTEXT */

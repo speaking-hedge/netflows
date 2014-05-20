@@ -105,7 +105,10 @@ static void __pp_packet_handler(struct pp_config *pp_ctx,
 
 				/* init flow local data for each analyser */
 				for (a = 0; a < pp_ctx->pp_analyser_num; a++) {
-					pp_ctx->pp_analysers[a].init(pp_ctx->pp_analysers[a].idx, flow);
+					pp_ctx->pp_analysers[a].init(pp_ctx->pp_analysers[a].idx,
+					                             flow,
+					                             pp_ctx->analyser_mode,
+					                             pp_ctx->analyser_mode_val);
 				}
 
 			}
@@ -219,13 +222,16 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
 		{"dump-table-stats", 0, NULL, 'T'},
 		{"dump-packet-processor-stats", 0, NULL, 'p'},
 		{"analyse-window-size",0 , NULL, 'w'},
+		{"analyse-infinity", 0, NULL, 'i'},
+		{"analyse-timespan", required_argument, NULL, 't'},
+		{"analyse-num-packets", required_argument, NULL, 'n'},
 		{NULL, 0, NULL, 0}
 	};
 	int opt = 0, i = 0;
 	char *endptr = NULL;
 
 	while(1) {
-		opt = getopt_long(argc, argv, "hva:l:c:o:jf:J:r::PFTpw", options, NULL);
+		opt = getopt_long(argc, argv, "hva:l:c:o:jf:J:r::PFTpwit:n:", options, NULL);
 		if (opt == -1)
 			break;
 
@@ -308,7 +314,7 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
 				pp_ctx->processing_options |= PP_PROC_OPT_USE_REST;
 				break;
 			case 'w': /* analyse window size */
-				pp_register_analyser(pp_ctx,
+				pp_register_analyser(&pp_ctx->pp_analysers,
 									 &pp_window_size_collect,
 									 &pp_window_size_analyse,
 									 &pp_window_size_report,
@@ -317,6 +323,15 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
 									 &pp_window_size_destroy,
 									 NULL);
 				pp_ctx->pp_analyser_num++;
+				break;
+			case 'i':
+				pp_ctx->analyser_mode = PP_ANALYSER_MODE_INFINITY;
+				break;
+			case 't':
+				pp_ctx->analyser_mode = PP_ANALYSER_MODE_TIMESPAN;
+				break;
+			case 'n':
+				pp_ctx->analyser_mode = PP_ANALYSER_MODE_PACKETCOUNT;
 				break;
 			default:
 				abort();
@@ -373,6 +388,13 @@ static void __pp_set_action(struct pp_config *pp_ctx, enum pp_action action, cha
  */
 static void __pp_ctx_dump(struct pp_config *pp_ctx) {
 
+	static char* analyser_mode_str[PP_ANALYSER_MODE_EOL] = {
+		[PP_ANALYSER_MODE_UNKNOWN] = "unknown",
+		[PP_ANALYSER_MODE_INFINITY] = "infinity",
+		[PP_ANALYSER_MODE_PACKETCOUNT] = "packet count",
+		[PP_ANALYSER_MODE_TIMESPAN] = "timepspan"
+	};
+
 	printf("-----------------------------------------\n");
 	printf("unique flows:   %d\n", pp_ctx->unique_flows);
 	printf("packets seen:   %" PRIu64 "\n", pp_ctx->packets_seen);
@@ -380,6 +402,7 @@ static void __pp_ctx_dump(struct pp_config *pp_ctx) {
 	printf("byte seen:      %" PRIu64 "\n", pp_ctx->bytes_seen);
 	printf("bytes taken:    %" PRIu64 "\n", pp_ctx->bytes_taken);
 	printf("rest backend:   %s\n", pp_ctx->processing_options & PP_PROC_OPT_USE_REST?pp_ctx->rest_backend_url:"disabled");
+	printf("analyser mode:  %s\n", analyser_mode_str[pp_ctx->analyser_mode]);
 }
 
 /**
@@ -401,28 +424,36 @@ void pp_usage(void) {
 	printf("Usage: pp [OPTION] FILE\n");
 	printf("processes network packets gathered from sniffed traffic to generate\n");
 	printf("flow related statistics\n\n");
-	printf("-c --check <file>       do not process the file, just check if \n");
-	printf("                        given file is a valid pcap(ng) file\n");
-	printf("-j --gen-job-id         generate a unique job-id (sha256) based\n");
-	printf("                        on given file\n");
-	printf("-J --job-id <id>        use given id to identify generated reports\n");
-	printf("-a --analyse <file>     analyse given pcap(ng) file\n");
-	printf("-l --live-analyse <if>  capture and analyse traffic from given interface\n");
-	printf("-f --bp-filter <bpf>    set Berkeley Packet Filter by given string\n");
+	printf("-c --check <file>              do not process the file, just check if \n");
+	printf("                               given file is a valid pcap(ng) file\n");
+	printf("-j --gen-job-id                generate a unique job-id (sha256) based\n");
+	printf("                               on given file\n");
+	printf("-J --job-id <id>               use given id <id> to identify\n");
+	printf("                               generated reports\n");
+	printf("-a --analyse <file>            analyse given pcap(ng) file\n");
+	printf("-l --live-analyse <if>         capture and analyse traffic from \n");
+	printf("                               given interface (may need root)\n");
+	printf("-f --bp-filter <bpf>           set Berkeley Packet Filter by given\n");
+	printf("                               string (you may quote the string)\n");
 	printf("\n");
-	printf("-v --version            show program version\n");
-	printf("-h --help               show help\n");
+	printf("-v --version                   show program version\n");
+	printf("-h --help                      show help\n");
 	printf("\n");
-	printf("-o --output <file>      output to given file (default: stdout)\n");
-	printf("                        for dumps requested while the analyser\n");
-	printf("                        is still running, an increasing nummber is\n");
-	printf("                        appended to the filename\n");
+	printf("-o --output <file>             output to given file (default: stdout)\n");
+	printf("                               for dumps requested while the analyser\n");
+	printf("                               is still running, an increasing nummber\n");
+	printf("                               is appended to the filename\n");
 	printf("\n");
-	printf("-r<URL>                 use REST backend at given URL\n");
-	printf("--rest-backend=<URL>    (default: localhost:80)\n");
+	printf("-r<URL>                        use REST backend at given URL\n");
+	printf("--rest-backend=<URL>           (default: localhost:80)\n");
 	printf("\n");
-	printf("-P --dump-packets       dump each packet (time consuming!)\n");
-	printf("-F --dump-flows         dump all flows at exit\n");
-	printf("-T --dump-table-stats   dump flow table stats at exit\n");
-	printf("-p --dump-pp-stats      dump packet processor stats at exit\n");
+	printf("-P --dump-packets              dump each packet (time consuming!)\n");
+	printf("-F --dump-flows                dump all flows at exit\n");
+	printf("-T --dump-table-stats          dump flow table stats at exit\n");
+	printf("-p --dump-pp-stats             dump packet processor stats at exit\n");
+	printf("\n");
+	printf("-i --analyse-infinite          analyse all packets (default)\n");
+	printf("-t --analyse-timespan <num>    only analyse packets within the last\n");
+	printf("                               <num> milliseconds\n");
+	printf("-n --analyse-num-packets <num> only analyse last <num> packets\n");
 }

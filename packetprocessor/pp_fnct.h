@@ -10,7 +10,6 @@
 #include <time.h>
 #include <gcrypt.h>
 
-#include <pp_common.h>
 #include <pp_context.h>
 
 int pp_init_ctx(struct pp_config *pp_ctx, void (*packet_handler)(struct pp_config *pp_ctx, uint8_t *data, uint16_t len, uint64_t timestamp));

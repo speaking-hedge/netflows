@@ -15,6 +15,7 @@ void pp_window_size_collect(uint32_t idx, struct pp_packet_context *pkt_ctx, str
 		}
 		pp_wnd_sz_data->data[pp_wnd_sz_data->used_slots].size = pkt_ctx->l4_meta.tcp.window_size;
 		pp_wnd_sz_data->data[pp_wnd_sz_data->used_slots].time = flow_ctx->last_seen;
+		pp_wnd_sz_data->data[pp_wnd_sz_data->used_slots].direction = pkt_ctx->direction;
 	}
 }
 
@@ -34,16 +35,25 @@ char* pp_window_size_describe(struct pp_flow *flow_ctx) {
 }
 
 /* init private data */
-void pp_window_size_init(uint32_t idx, struct pp_flow *flow_ctx) {
+void pp_window_size_init(uint32_t idx, struct pp_flow *flow_ctx, enum PP_ANALYSER_MODES mode, uint32_t mode_val) {
 
 	struct pp_window_size_data *pp_wnd_sz_data = NULL;
 	flow_ctx->analyser_data[idx] = malloc(sizeof(struct pp_window_size_data));
 
 	pp_wnd_sz_data = (struct pp_window_size_data*)flow_ctx->analyser_data[idx];
 
-	pp_wnd_sz_data->data = calloc(PP_WINDOW_SIZE_SLOT_STEP, sizeof(struct __pp_window_size_data ));
-	pp_wnd_sz_data->available_slots = PP_WINDOW_SIZE_SLOT_STEP;
+	pp_wnd_sz_data->mode = mode;
+	pp_wnd_sz_data->mode = mode_val;
+	if (mode_val == PP_ANALYSER_MODE_PACKETCOUNT) {
+		pp_wnd_sz_data->data = calloc(mode_val, sizeof(struct __pp_window_size_data ));
+		pp_wnd_sz_data->available_slots = mode_val;
+	} else {
+		pp_wnd_sz_data->data = calloc(PP_WINDOW_SIZE_SLOT_STEP, sizeof(struct __pp_window_size_data ));
+		pp_wnd_sz_data->available_slots = PP_WINDOW_SIZE_SLOT_STEP;
+	}
+
 	pp_wnd_sz_data->used_slots = 0;
+
 }
 
 /* free all data */

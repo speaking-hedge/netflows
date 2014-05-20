@@ -38,6 +38,9 @@ int pp_ctx_init(struct pp_config *pp_ctx, void (*packet_handler)(struct pp_confi
 	pp_ctx->pp_analysers = NULL;
 	pp_ctx->pp_analyser_num = 0;
 
+	pp_ctx->analyser_mode = PP_ANALYSER_MODE_INFINITY;
+	pp_ctx->analyser_mode_val = 0;
+
 	return 0;
 }
 

@@ -12,12 +12,12 @@
  * @retval 0 on success
  * @retval 1 on error
  */
-int pp_register_analyser(struct pp_config *pp_ctx,
+int pp_register_analyser(struct pp_analyser **analyser_list,
 						 void (*collect)(uint32_t idx, struct pp_packet_context *pkt_ctx, struct pp_flow *flow_ctx),
 						 void (*analyse)(uint32_t idx, struct pp_flow *flow_ctx),
 						 char* (*report)(uint32_t idx, struct pp_flow *flow_ctx),
 						 char* (*describe)(struct pp_flow *flow_ctx),
-						 void (*init)(uint32_t idx, struct pp_flow *flow_ctx),
+						 void (*init)(uint32_t idx, struct pp_flow *flow_ctx, enum PP_ANALYSER_MODES mode, uint32_t mode_val),
 						 void (*destroy)(uint32_t idx, struct pp_flow *flow_ctx),
 						 void *usr_ptr) {
 
@@ -37,11 +37,11 @@ int pp_register_analyser(struct pp_config *pp_ctx,
 	new_analyser->next_analyser = NULL;
 	new_analyser->idx = analyser_idx++;
 
-	if (!pp_ctx->pp_analysers) {
-		pp_ctx->pp_analysers = new_analyser;
+	if (!analyser_list) {
+		*analyser_list = new_analyser;
 	} else {
-		new_analyser->next_analyser = pp_ctx->pp_analysers;
-		pp_ctx->pp_analysers = new_analyser;
+		new_analyser->next_analyser = *analyser_list;
+		*analyser_list = new_analyser;
 	}
 
 	return 0;
