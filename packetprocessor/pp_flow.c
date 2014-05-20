@@ -117,6 +117,7 @@ static inline int __pp_flow_table_compare(struct pp_flow *flow,
 			  !IN6_ARE_ADDR_EQUAL(&flow->ep_b.ip.addr.v6, &pkt_ctx->src_addr.v6))) {
 				  return 1;
 		}
+		break;
 	default:
 		return 1;
 	}
@@ -144,6 +145,7 @@ struct pp_flow* pp_flow_construct(struct pp_packet_context *pkt_ctx) {
 
 	flow->ep_a.ip.addr.v6 = pkt_ctx->src_addr.v6;
 	flow->ep_b.ip.addr.v6 = pkt_ctx->dst_addr.v6;
+
 	flow->ep_a.port = pkt_ctx->src_port;
 	flow->ep_b.port = pkt_ctx->dst_port;
 
@@ -184,11 +186,11 @@ struct pp_flow* pp_flow_table_get_flow(struct pp_flow_table *table,
 
 		cur_flow = table->buckets[bucket];
 		do {
-			if (0 == __pp_flow_table_compare(table->buckets[bucket], pkt_ctx)) {
+			if (0 == __pp_flow_table_compare(cur_flow, pkt_ctx)) {
 				/* flow allready known */
-				__pp_flow_update(table->buckets[bucket], pkt_ctx);
+				__pp_flow_update(cur_flow, pkt_ctx);
 				*is_new_flow = 0;
-				return table->buckets[bucket];
+				return cur_flow;
 			}
 
 			cur_flow = cur_flow->next_flow;
@@ -280,8 +282,6 @@ inline uint32_t __pp_flow_fold_addresses(struct pp_packet_context *pkt_ctx, int 
 			tmp |= (tmp << 16);
 #elif __BYTE_ORDER == __BIG_ENDIAN
 			tmp |= (tmp >> 16);
-#else
-#error "unknown byte order - are u using a quantum computer?"
 #endif
 			return (key ^= tmp);
 			break;
