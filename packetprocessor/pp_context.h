@@ -53,7 +53,7 @@ struct pp_config {
 	int pp_analyser_num;
 
 	enum PP_ANALYSER_MODES analyser_mode;
-	uint32_t analyser_mode_val;
+	int32_t analyser_mode_val;
 };
 
 #endif /* __PP_CONTEXT */

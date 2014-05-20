@@ -329,9 +329,21 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
 				break;
 			case 't':
 				pp_ctx->analyser_mode = PP_ANALYSER_MODE_TIMESPAN;
+				errno = 0;
+				pp_ctx->analyser_mode_val = strtol(optarg, NULL, 10);
+				if (errno || pp_ctx->analyser_mode_val < 1) {
+					fprintf(stderr, "analyser mode - given time span invalid.\nmust be at least 1 millisecond.\n");
+					exit(1);
+				}
 				break;
 			case 'n':
 				pp_ctx->analyser_mode = PP_ANALYSER_MODE_PACKETCOUNT;
+				errno = 0;
+				pp_ctx->analyser_mode_val = strtol(optarg, NULL, 10);
+				if (errno || pp_ctx->analyser_mode_val < 1) {
+					fprintf(stderr, "analyser mode - given packet count invalid.\nmust be > 0.\n");
+					exit(1);
+				}
 				break;
 			default:
 				abort();
@@ -396,13 +408,17 @@ static void __pp_ctx_dump(struct pp_config *pp_ctx) {
 	};
 
 	printf("-----------------------------------------\n");
-	printf("unique flows:   %d\n", pp_ctx->unique_flows);
-	printf("packets seen:   %" PRIu64 "\n", pp_ctx->packets_seen);
-	printf("packets taken:  %" PRIu64 "\n", pp_ctx->packets_taken);
-	printf("byte seen:      %" PRIu64 "\n", pp_ctx->bytes_seen);
-	printf("bytes taken:    %" PRIu64 "\n", pp_ctx->bytes_taken);
-	printf("rest backend:   %s\n", pp_ctx->processing_options & PP_PROC_OPT_USE_REST?pp_ctx->rest_backend_url:"disabled");
-	printf("analyser mode:  %s\n", analyser_mode_str[pp_ctx->analyser_mode]);
+	printf("unique flows:      %d\n", pp_ctx->unique_flows);
+	printf("packets seen:      %" PRIu64 "\n", pp_ctx->packets_seen);
+	printf("packets taken:     %" PRIu64 "\n", pp_ctx->packets_taken);
+	printf("byte seen:         %" PRIu64 "\n", pp_ctx->bytes_seen);
+	printf("bytes taken:       %" PRIu64 "\n", pp_ctx->bytes_taken);
+	printf("rest backend:      %s\n", pp_ctx->processing_options & PP_PROC_OPT_USE_REST?pp_ctx->rest_backend_url:"disabled");
+	printf("analyser mode:     %s\n", analyser_mode_str[pp_ctx->analyser_mode]);
+	if (pp_ctx->analyser_mode == PP_ANALYSER_MODE_PACKETCOUNT ||
+		pp_ctx->analyser_mode == PP_ANALYSER_MODE_TIMESPAN) {
+		printf("analyser mode val: %d\n", pp_ctx->analyser_mode_val);
+	}
 }
 
 /**
