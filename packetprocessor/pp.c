@@ -144,11 +144,11 @@ static void __pp_packet_handler(struct pp_config *pp_ctx,
 static int __rest_set_job_state(struct pp_config *pp_ctx, enum RestJobState state) {
 	if (pp_ctx->processing_options & PP_PROC_OPT_USE_REST) {
 		if (pp_ctx->job_id == NULL) {
-			fprintf(stderr,"REST requires job-id. abort.\n");
+			fprintf(stderr,"REST requires job-id.\n");
 			return 1;
 		}
 		if (pp_rest_job_state(pp_ctx->rest_backend_url, pp_ctx->job_id, state)) {
-			fprintf(stderr, "REST communication error. abort.\n");
+			fprintf(stderr, "REST communication error.\n");
 			return 1;
 		}
 	}
@@ -171,6 +171,8 @@ static int __pp_run_pcap_file(struct pp_config *pp_ctx) {
 			dump = 0;
 		}
 	}
+
+        __rest_set_job_state(pp_ctx, JOB_STATE_FINISHED); // maybe find a better place
 }
 
 static int __pp_run_live(struct pp_config *pp_ctx) {
