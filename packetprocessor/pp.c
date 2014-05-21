@@ -152,7 +152,7 @@ static int __pp_run_pcap_file(struct pp_config *pp_ctx) {
 			fprintf(stderr,"REST requires job-id. abort.\n");
 			return 1;
 		}
-		if (pp_rest_job_state(pp_ctx->rest_backend_url, pp_ctx->job_id,2)) {
+		if (pp_rest_job_state(pp_ctx->rest_backend_url, pp_ctx->job_id, JOB_STATE_RUNNING)) {
 			fprintf(stderr, "REST communication error. abort.\n");
 			return 1;
 		}

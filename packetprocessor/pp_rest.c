@@ -40,7 +40,7 @@ static int __pp_rest_send(const char* url)
  * @retval 0 on success
  * @retval 1 on error
  */
-int pp_rest_job_state(const char* url, const char* job_hash, const char state)
+int pp_rest_job_state(const char* url, const char* job_hash, enum RestJobState state)
 {
 	if (state > 6 || state < 0) return 1; // invalid state id
 
@@ -57,5 +57,6 @@ int pp_rest_job_state(const char* url, const char* job_hash, const char state)
 	strcat(msg, param_stateid);
 	strcat(msg, param_jobid);
 	strcat(msg, job_hash);
+
 	return __pp_rest_send(msg);
 }

@@ -9,6 +9,7 @@
 #include <pp_fnct.h>
 #include <pp_decap.h>
 #include <pp_analyser.h>
+#include <pp_rest.h>
 
 #include <pp_window_size.h>
 
