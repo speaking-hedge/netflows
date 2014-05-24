@@ -6,7 +6,8 @@ require_once 'netflows_backend_communicator.php';
 require_once 'netflows_file_io.php';
 require_once('db/JobsDB.php');
 require_once('db/AnalysersDB.php');
-
+require_once('db/FlowsDB.php');
+require_once('db/AnalysisDB.php');
 
 /**
  * Controler of the netflows frontend using RESTful design.
@@ -28,6 +29,8 @@ class Controller extends \RESTController //RESTControler is not in global namesp
         $this->io        = new FileIO();
         $this->jobs      = new JobsDB();
         $this->analysers = new AnalysersDB();
+        $this->flows     = new FlowsDB();
+        $this->analysis  = new AnalysisDB();
 
         //check for user token...
     }
@@ -51,7 +54,17 @@ class Controller extends \RESTController //RESTControler is not in global namesp
     {
         return $this->callMethodOfObject($this->analysers, $method, $args);
     }
-
+    
+    protected function accessFlows($method, $args)
+    {
+        return $this->callMethodOfObject($this->flows, $method, $args);
+    }
+    
+    protected function accessResults($method, $args)
+    {
+        return $this->callMethodOfObject($this->analysis, $method, $args);
+    }
+    
     private function callMethodOfObject($object, $method, $args)
     {
         if(method_exists($object, $method) > 0)
