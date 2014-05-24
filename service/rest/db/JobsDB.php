@@ -89,7 +89,7 @@ class JobsDB extends \DBConnector
         if(!parent::isValidIndex($args,self::ID_INDEX))
         {
             return array("status"  => "Error",
-                         "message" => "Invalid or unkwon Job-ID!!!");
+                         "message" => "Invalid or unkwon Job-ID!");
         }
 
         $job = $this->entityManager->find("Jobs",$args[self::ID_INDEX]);
@@ -197,9 +197,6 @@ class JobsDB extends \DBConnector
         $jobStateObj = $this->entityManager->find("JobStates",$state);
         if(isset($jobStateObj))     //if id of job-state is invalid, a null-object will be returned
             $job->setJobState($jobStateObj);
-        else
-           return array("status"  => "Error",
-                        "message" => "The provided '".self::JOB_STATE_INDEX."' violates foreign key restrictions. No job-state found of ID '$state'!"); 
 
         $job->setIsPublic($public);
 
@@ -250,7 +247,7 @@ class JobsDB extends \DBConnector
         if(!isset($job))
         {
             return array("status"  => "Error",
-                         "message" => "Job with ID: '$id' not found!");
+                         "message" => "Job with ID: '".$id."' not found!");
         }
 
         if(!isset($percentage) || $percentage < 0)
@@ -285,12 +282,12 @@ class JobsDB extends \DBConnector
         if(!isset($job))
         {
             return array("status"  => "Error",
-                         "message" => "Job with ID: '$jobID' not found!");
+                         "message" => "Job with ID: '".$jobID."' not found!");
         }
         if(!isset($state))
         {
             return array("status"  => "Error",
-                         "message" => "Job-State with ID: '$stateID' not found!");
+                         "message" => "Job-State with ID: '".$stateID."' not found!");
         }
 
         $job->setJobState($state);

@@ -37,22 +37,14 @@ class FileIO
         //check for file content and write to disk
         if(array_key_exists("content",$args))
         {
-            try
-            {
-                $outputStream = fopen(self::UPLOAD_PATH.$filename, 'w') or die("Cannot open file for writing!");
-                
-                fwrite($outputStream, $args["content"]);
+            $outputStream = fopen(self::UPLOAD_PATH.$filename, 'w') or die("cannot open file");
 
-                fclose($outputStream);
+            fwrite($outputStream, $args["content"]);
 
-                return array("status"  => "Success",
-                             "message" => "File successfully created!");
-            }
-            catch(Exception $e)
-            {
-                return array("status"  => "Error",
-                             "message" => "There was an I/O error.".$e->getMessage());            
-            }
+            fclose($outputStream);
+
+            return array("status"  => "Success",
+                         "message" => "File successfully created!");
         }
 
         return array("status"  => "Error",
