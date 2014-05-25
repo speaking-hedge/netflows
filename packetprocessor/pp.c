@@ -1,23 +1,32 @@
 #include "pp.h"
 
 volatile sig_atomic_t run;
-volatile sig_atomic_t dump;
+
 
 static void __pp_set_action(struct pp_config *pp_ctx, enum pp_action action, char *packet_source);
 static int __pp_run_pcap_file(struct pp_config *pp_ctx);
 static int __pp_run_live(struct pp_config *pp_ctx);
 static void __pp_packet_handler(struct pp_config *pp_ctx, uint8_t *data, uint16_t len, uint64_t ts);
 static void __pp_ctx_dump(struct pp_config *pp_ctx);
+static int __rest_set_job_state(struct pp_config *pp_ctx, enum RestJobState state);
+
+static void* __pp_show_stats_thread(void *arg);
+static void* __pp_report_thread(void *arg);
+
+/* context of the packet processor */
+static struct pp_config pp_ctx;
 
 int main(int argc, char **argv) {
 
-	struct pp_config pp_ctx;
 	int rc = 0;
 
 	signal(SIGINT, &pp_catch_term);
 	signal(SIGQUIT, &pp_catch_term);
 	signal(SIGTERM, &pp_catch_term);
-	signal(SIGUSR1, &pp_catch_dump);
+	signal(SIGUSR1, &pp_catch_sigusr1);
+	signal(SIGUSR2, &pp_catch_sigusr2);
+
+	run = 1;
 
 	if(pp_ctx_init(&pp_ctx, &__pp_packet_handler)) {
 		fprintf(stderr, "failed to init packet processor. abort.\n");
@@ -29,11 +38,21 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
+	if(pthread_create(&pp_ctx.pt_stats, NULL, &__pp_show_stats_thread, &pp_ctx)) {
+		fprintf(stderr, "failed to create show stats thread. abort.\n");
+		return 1;
+	}
+
+	if(pthread_create(&pp_ctx.pt_report, NULL, &__pp_report_thread, &pp_ctx)) {
+		fprintf(stderr, "failed to create report thread. abort.\n");
+		return 1;
+	}
+
 	switch(pp_ctx.action) {
 		case PP_ACTION_CHECK:
 			rc = pp_check_file(&pp_ctx);
 			break;
-		case PP_ACTION_ANALYSE_FILE:
+		case PP_ACTION_ANALYZE_FILE:
 			if(pp_pcap_open(&pp_ctx)) {
 				rc = 1;
 			} else {
@@ -41,7 +60,7 @@ int main(int argc, char **argv) {
 			}
 			pp_pcap_close(&pp_ctx);
 			break;
-		case PP_ACTION_ANALYSE_LIVE:
+		case PP_ACTION_ANALYZE_LIVE:
 			rc = __pp_run_live(&pp_ctx);
 			break;
 		default:
@@ -49,20 +68,112 @@ int main(int argc, char **argv) {
 			rc = 1;
 	}
 
-	if (pp_ctx.processing_options & PP_PROC_OPT_DUMP_FLOWS)
-		pp_flow_table_dump(pp_ctx.flow_table);
-	if (pp_ctx.processing_options & PP_PROC_OPT_DUMP_TABLE_STATS)
-		pp_flow_table_stats(pp_ctx.flow_table);
-	if (pp_ctx.processing_options & PP_PROC_OPT_DUMP_PP_STATS)
-		__pp_ctx_dump(&pp_ctx);
+	/* dump selected stats on exit */
+	pthread_cond_signal(&pp_ctx.pc_stats);
+	//pthread_yield();
+	do {
+		usleep(100000);
+	} while(0 != pthread_mutex_trylock(&pp_ctx.pm_stats));
+
+	/* trigger report on exit */
+	pthread_cond_signal(&pp_ctx.pc_report);
+	//pthread_yield();
+	do {
+		usleep(100000);
+	} while(0 != pthread_mutex_trylock(&pp_ctx.pm_report));
 
 	pp_ctx_cleanup(&pp_ctx);
 
 	return rc;
 }
 
+static void* __pp_show_stats_thread(void *arg) {
+
+	struct pp_config *pp_ctx = arg;
+	assert(arg);
+
+	while(run) {
+
+		pthread_mutex_lock(&pp_ctx->pm_stats);
+		pthread_cond_wait(&pp_ctx->pc_stats, &pp_ctx->pm_stats);
+
+		if (pp_ctx->processing_options & PP_PROC_OPT_DUMP_FLOWS) {
+			pp_flow_table_dump(pp_ctx->flow_table);
+		}
+
+		if (pp_ctx->processing_options & PP_PROC_OPT_DUMP_TABLE_STATS) {
+			pp_flow_table_stats(pp_ctx->flow_table);
+		}
+
+		if (pp_ctx->processing_options & PP_PROC_OPT_DUMP_PP_STATS ) {
+			__pp_ctx_dump(pp_ctx);
+		}
+
+		pthread_mutex_unlock(&pp_ctx->pm_stats);
+	}
+
+	return NULL;
+}
+
+static void* __pp_report_thread(void *arg) {
+
+	struct pp_config *pp_ctx = arg;
+	int b = 0, a = 0;
+	struct pp_flow *flow = NULL;
+	char *report_data = NULL;
+	int sample_id = 0;
+
+	assert(arg);
+
+	while(run) {
+		pthread_mutex_lock(&pp_ctx->pm_report);
+		pthread_cond_wait(&pp_ctx->pc_report, &pp_ctx->pm_report);
+
+		sample_id++;
+
+		/* report */
+		for (b = 0; b < pp_ctx->flow_table->size; b++) {
+			if (pp_ctx->flow_table->buckets[b] != NULL) {
+				flow = pp_ctx->flow_table->buckets[b];
+				do {
+
+					pthread_mutex_lock(&flow->lock);
+
+					for (a=0; a < pp_ctx->analyzer_num; a++) {
+						pp_ctx->analyzers[a].analyze(a, flow);
+
+						/* TODO: report to rest service if configured */
+
+						report_data = pp_ctx->analyzers[a].report(a, flow);
+						if (report_data) {
+
+							if (pp_ctx->job_id) {
+								printf("{job-id: \"%s\"}\n", pp_ctx->job_id);
+							}
+
+							printf("{flow-id: %d}\n", flow->id);
+							printf("{sample-id: %d}\n", sample_id);
+
+							printf("%s\n", report_data);
+							free(report_data);
+						}
+					} /* __loop_analyzers */
+
+					pthread_mutex_unlock(&flow->lock);
+
+					flow = flow->next_flow;
+				} while (flow); /* __loop_flows */
+			} /* __bucket_has_data */
+		} /* __loop_flow_hash_table */
+
+		pthread_mutex_unlock(&pp_ctx->pm_report);
+	}
+
+	return NULL;
+}
+
 /**
- * @brief central packet handler callback, invokes analysers
+ * @brief central packet handler callback, invokes analyzers
  * @param pp_ctx holds the config of pp
  * @param data of the packet
  * @param len number of bytes in the packet
@@ -75,17 +186,22 @@ static void __pp_packet_handler(struct pp_config *pp_ctx,
 
 	struct pp_packet_context pkt_ctx;
 	struct pp_flow *flow = NULL;
-	int is_new = 0;
-	int a = 0;
-
-	pp_ctx->packets_seen++;
-	pp_ctx->bytes_seen += len;
+	uint32_t is_new = 0;
+	uint32_t a = 0;
+	int rc = 0;
 
 	if (pp_ctx->bp_filter && !bpf_filter(pp_ctx->bp_filter, data, len, len)) {
+
+		pthread_mutex_lock(&pp_ctx->stats_lock);
+		pp_ctx->packets_seen++;
+		pp_ctx->bytes_seen += len;
+		pthread_mutex_unlock(&pp_ctx->stats_lock);
+
 		return;
 	}
 
-	switch(pp_decap(data, len, ts, &pkt_ctx, pp_ctx->bp_filter)) {
+	rc = pp_decap(data, len, ts, &pkt_ctx, pp_ctx->bp_filter);
+	switch(rc) {
 	case PP_DECAP_OKAY:
 		/* get flow for current packet and updates flow local counter
 		 * and the packet direction attribute of the packet context
@@ -93,35 +209,29 @@ static void __pp_packet_handler(struct pp_config *pp_ctx,
 		flow = pp_flow_table_get_flow(pp_ctx->flow_table,
 									  &pkt_ctx, &is_new);
 
-		if (flow) {
-			if (is_new) {
-				pp_ctx->unique_flows++;
+		if (likely(flow)) {
 
-				/* attach and init analysers */
-				if (!(flow->analyser_data = calloc(1, sizeof(void *)))) {
+			if (unlikely(is_new)) {
+
+				if(pp_attach_analyzers_to_flow(pp_ctx, flow)) {
 					/* TODO: error handling */
 					return;
 				}
-
-				/* init flow local data for each analyser */
-				for (a = 0; a < pp_ctx->pp_analyser_num; a++) {
-					pp_ctx->pp_analysers[a].init(pp_ctx->pp_analysers[a].idx,
-					                             flow,
-					                             pp_ctx->analyser_mode,
-					                             pp_ctx->analyser_mode_val);
-				}
-
-			}
-			pp_ctx->packets_taken++;
-			pp_ctx->bytes_taken += len;
-
-			/* run selected analysers */
-			for (a = 0; a < pp_ctx->pp_analyser_num; a++) {
-				pp_ctx->pp_analysers[a].collect(pp_ctx->pp_analysers[a].idx, &pkt_ctx, flow);
 			}
 
-			if (pp_ctx->processing_options & PP_PROC_OPT_DUMP_EACH_PACKET)
+			pthread_mutex_lock(&flow->lock);
+
+			/* run selected analyzers */
+			for (a = 0; a < pp_ctx->analyzer_num; a++) {
+				pp_ctx->analyzers[a].collect(pp_ctx->analyzers[a].idx, &pkt_ctx, flow);
+			}
+
+			pthread_mutex_unlock(&flow->lock);
+
+			/* debug output */
+			if (pp_ctx->processing_options & PP_PROC_OPT_DUMP_EACH_PACKET) {
 				pp_dump_packet(&pkt_ctx);
+			}
 		}
 		break;
 #ifdef PP_DEBUG
@@ -137,8 +247,18 @@ static void __pp_packet_handler(struct pp_config *pp_ctx,
 		break;
 	default:
 		printf("x"); fflush(stdout);
+		break;
 #endif
-	}
+	} /* __switch_decap_result */
+
+	/* update stats */
+	pthread_mutex_lock(&pp_ctx->stats_lock);
+	pp_ctx->packets_seen++;
+	pp_ctx->bytes_seen += len;
+	pp_ctx->unique_flows += !!is_new;
+	pp_ctx->packets_taken += flow!=0;
+	pp_ctx->bytes_taken += flow!=0?len:0;
+	pthread_mutex_unlock(&pp_ctx->stats_lock);
 }
 
 static int __rest_set_job_state(struct pp_config *pp_ctx, enum RestJobState state) {
@@ -161,25 +281,22 @@ static int __pp_run_pcap_file(struct pp_config *pp_ctx) {
 
 	if (__rest_set_job_state(pp_ctx, JOB_STATE_RUNNING)) return 1;
 
-	run = 1;
 	while (run && (pkt = pcap_next(pp_ctx->pcap_handle, &hdr))) {
 		if (hdr.caplen == hdr.len) {
 			pp_ctx->packet_handler_cb(pp_ctx, (uint8_t*)pkt, hdr.caplen, (hdr.ts.tv_sec * 1000000) + (hdr.ts.tv_usec));
 		}
-		if (dump) {
-			pp_dump_state(pp_ctx);
-			dump = 0;
-		}
 	}
 
-        __rest_set_job_state(pp_ctx, JOB_STATE_FINISHED); // maybe find a better place
+	__rest_set_job_state(pp_ctx, JOB_STATE_FINISHED); /* TODO: maybe find a better place */
+
+	return 0;
 }
 
 static int __pp_run_live(struct pp_config *pp_ctx) {
 
 	int rc = 0;
 
-	switch(pp_live_init()) {
+	switch(pp_live_init(pp_ctx)) {
 		case EPERM:
 			fprintf(stderr, "invalid permissions - failed to init live capture. abort.\n");
 			return 1;
@@ -194,8 +311,7 @@ static int __pp_run_live(struct pp_config *pp_ctx) {
 			return 1;
 	}
 
-	run = 1;
-	rc = pp_live_capture(pp_ctx, &run, &dump);
+	rc = pp_live_capture(pp_ctx, &run);
 	pp_live_shutdown(pp_ctx);
 
 	return rc;
@@ -214,8 +330,8 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
 	struct option options[] = {
 		{"help", 0, NULL, 'h'},
 		{"version", 0, NULL, 'v'},
-		{"analyse", required_argument, NULL, 'a'},
-		{"live-analyse", required_argument, NULL, 'l'},
+		{"analyze", required_argument, NULL, 'a'},
+		{"live-analyze", required_argument, NULL, 'l'},
 		{"check", required_argument, NULL, 'c'},
 		{"output", required_argument, NULL, 'o'},
 		{"gen-job-id", 0, NULL, 'j'},
@@ -226,10 +342,10 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
 		{"dump-flows", 0, NULL, 'F'},
 		{"dump-table-stats", 0, NULL, 'T'},
 		{"dump-packet-processor-stats", 0, NULL, 'p'},
-		{"analyse-window-size",0 , NULL, 'w'},
-		{"analyse-infinity", 0, NULL, 'i'},
-		{"analyse-timespan", required_argument, NULL, 't'},
-		{"analyse-num-packets", required_argument, NULL, 'n'},
+		{"analyze-window-size",0 , NULL, 'w'},
+		{"analyze-infinity", 0, NULL, 'i'},
+		{"analyze-timespan", required_argument, NULL, 't'},
+		{"analyze-num-packets", required_argument, NULL, 'n'},
 		{NULL, 0, NULL, 0}
 	};
 	int opt = 0, i = 0;
@@ -251,10 +367,10 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
 				exit(0);
 			break;
 			case 'a':
-				__pp_set_action(pp_ctx, PP_ACTION_ANALYSE_FILE, optarg);
+				__pp_set_action(pp_ctx, PP_ACTION_ANALYZE_FILE, optarg);
 				break;
 			case 'l':
-				__pp_set_action(pp_ctx, PP_ACTION_ANALYSE_LIVE, optarg);
+				__pp_set_action(pp_ctx, PP_ACTION_ANALYZE_LIVE, optarg);
 				break;
 			case 'c':
 				__pp_set_action(pp_ctx, PP_ACTION_CHECK, optarg);
@@ -318,35 +434,35 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
 				}
 				pp_ctx->processing_options |= PP_PROC_OPT_USE_REST;
 				break;
-			case 'w': /* analyse window size */
-				pp_register_analyser(&pp_ctx->pp_analysers,
+			case 'w': /* analyze window size */
+				pp_analyzer_register(&pp_ctx->analyzers,
 									 &pp_window_size_collect,
-									 &pp_window_size_analyse,
+									 &pp_window_size_analyze,
 									 &pp_window_size_report,
 									 &pp_window_size_describe,
 									 &pp_window_size_init,
 									 &pp_window_size_destroy,
 									 NULL);
-				pp_ctx->pp_analyser_num++;
+				pp_ctx->analyzer_num++;
 				break;
 			case 'i':
-				pp_ctx->analyser_mode = PP_ANALYSER_MODE_INFINITY;
+				pp_ctx->analyzer_mode = PP_ANALYZER_MODE_INFINITY;
 				break;
 			case 't':
-				pp_ctx->analyser_mode = PP_ANALYSER_MODE_TIMESPAN;
+				pp_ctx->analyzer_mode = PP_ANALYZER_MODE_TIMESPAN;
 				errno = 0;
-				pp_ctx->analyser_mode_val = strtol(optarg, NULL, 10);
-				if (errno || pp_ctx->analyser_mode_val < 1) {
-					fprintf(stderr, "analyser mode - given time span invalid.\nmust be at least 1 millisecond.\n");
+				pp_ctx->analyzer_mode_val = strtol(optarg, NULL, 10);
+				if (errno || pp_ctx->analyzer_mode_val < 1) {
+					fprintf(stderr, "analyzer mode - given time span invalid.\nmust be at least 1 millisecond.\n");
 					exit(1);
 				}
 				break;
 			case 'n':
-				pp_ctx->analyser_mode = PP_ANALYSER_MODE_PACKETCOUNT;
+				pp_ctx->analyzer_mode = PP_ANALYZER_MODE_PACKETCOUNT;
 				errno = 0;
-				pp_ctx->analyser_mode_val = strtol(optarg, NULL, 10);
-				if (errno || pp_ctx->analyser_mode_val < 1) {
-					fprintf(stderr, "analyser mode - given packet count invalid.\nmust be > 0.\n");
+				pp_ctx->analyzer_mode_val = strtol(optarg, NULL, 10);
+				if (errno || pp_ctx->analyzer_mode_val < 1) {
+					fprintf(stderr, "analyzer mode - given packet count invalid.\nmust be > 0.\n");
 					exit(1);
 				}
 				break;
@@ -361,6 +477,12 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
 		return 1;
 	}
 
+	if (pp_ctx->analyzer_mode == PP_ANALYZER_MODE_PACKETCOUNT &&
+		pp_ctx->analyzer_mode_val < WINDOWS_SIZE_ANALYZER_MIN_SAMPLE_COUNT) {
+		fprintf(stderr, "configured analyzer packet count (=%d) < min sample count (=%d) for window size analyzer. abort.\n", pp_ctx->analyzer_mode_val, WINDOWS_SIZE_ANALYZER_MIN_SAMPLE_COUNT);
+		return 1;
+	}
+
 	return 0;
 }
 
@@ -368,8 +490,26 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
  * @brief handle signals requesting a dump of the current state
  * @param signal to handle
  */
-void pp_catch_dump(int sig) {
-	dump = 1;
+void pp_catch_sigusr2(int sig) {
+
+	if (0 != pthread_mutex_trylock(&pp_ctx.pm_stats)) {
+		/* already running */
+		return;
+	}
+	pthread_cond_signal(&pp_ctx.pc_stats);
+}
+
+/**
+ * @brief handle signals requesting a report of the current analysis
+ * @param signal to handle
+ */
+void pp_catch_sigusr1(int sig) {
+
+	if (0 != pthread_mutex_trylock(&pp_ctx.pm_report)) {
+		/* already running */
+		return;
+	}
+	pthread_cond_signal(&pp_ctx.pc_report);
 }
 
 /**
@@ -405,25 +545,27 @@ static void __pp_set_action(struct pp_config *pp_ctx, enum pp_action action, cha
  */
 static void __pp_ctx_dump(struct pp_config *pp_ctx) {
 
-	static char* analyser_mode_str[PP_ANALYSER_MODE_EOL] = {
-		[PP_ANALYSER_MODE_UNKNOWN] = "unknown",
-		[PP_ANALYSER_MODE_INFINITY] = "infinity",
-		[PP_ANALYSER_MODE_PACKETCOUNT] = "packet count",
-		[PP_ANALYSER_MODE_TIMESPAN] = "timepspan"
+	static char* analyzer_mode_str[PP_ANALYZER_MODE_EOL] = {
+		[PP_ANALYZER_MODE_UNKNOWN] = "unknown",
+		[PP_ANALYZER_MODE_INFINITY] = "infinity",
+		[PP_ANALYZER_MODE_PACKETCOUNT] = "packet count",
+		[PP_ANALYZER_MODE_TIMESPAN] = "timepspan"
 	};
 
+	pthread_mutex_lock(&pp_ctx->stats_lock);
 	printf("-----------------------------------------\n");
 	printf("unique flows:      %d\n", pp_ctx->unique_flows);
 	printf("packets seen:      %" PRIu64 "\n", pp_ctx->packets_seen);
 	printf("packets taken:     %" PRIu64 "\n", pp_ctx->packets_taken);
-	printf("byte seen:         %" PRIu64 "\n", pp_ctx->bytes_seen);
+	printf("bytes seen:        %" PRIu64 "\n", pp_ctx->bytes_seen);
 	printf("bytes taken:       %" PRIu64 "\n", pp_ctx->bytes_taken);
 	printf("rest backend:      %s\n", pp_ctx->processing_options & PP_PROC_OPT_USE_REST?pp_ctx->rest_backend_url:"disabled");
-	printf("analyser mode:     %s\n", analyser_mode_str[pp_ctx->analyser_mode]);
-	if (pp_ctx->analyser_mode == PP_ANALYSER_MODE_PACKETCOUNT ||
-		pp_ctx->analyser_mode == PP_ANALYSER_MODE_TIMESPAN) {
-		printf("analyser mode val: %d\n", pp_ctx->analyser_mode_val);
+	printf("analyzer mode:     %s\n", analyzer_mode_str[pp_ctx->analyzer_mode]);
+	if (pp_ctx->analyzer_mode == PP_ANALYZER_MODE_PACKETCOUNT ||
+		pp_ctx->analyzer_mode == PP_ANALYZER_MODE_TIMESPAN) {
+		printf("analyzer mode val: %d\n", pp_ctx->analyzer_mode_val);
 	}
+	pthread_mutex_unlock(&pp_ctx->stats_lock);
 }
 
 /**
@@ -451,8 +593,8 @@ void pp_usage(void) {
 	printf("                               on given file\n");
 	printf("-J --job-id <id>               use given id <id> to identify\n");
 	printf("                               generated reports\n");
-	printf("-a --analyse <file>            analyse given pcap(ng) file\n");
-	printf("-l --live-analyse <if>         capture and analyse traffic from \n");
+	printf("-a --analyze <file>            analyze given pcap(ng) file\n");
+	printf("-l --live-analyze <if>         capture and analyze traffic from \n");
 	printf("                               given interface (may need root)\n");
 	printf("-f --bp-filter <bpf>           set Berkeley Packet Filter by given\n");
 	printf("                               string (you may quote the string)\n");
@@ -461,7 +603,7 @@ void pp_usage(void) {
 	printf("-h --help                      show help\n");
 	printf("\n");
 	printf("-o --output <file>             output to given file (default: stdout)\n");
-	printf("                               for dumps requested while the analyser\n");
+	printf("                               for dumps requested while the analyzer\n");
 	printf("                               is still running, an increasing nummber\n");
 	printf("                               is appended to the filename\n");
 	printf("\n");
@@ -473,8 +615,8 @@ void pp_usage(void) {
 	printf("-T --dump-table-stats          dump flow table stats at exit\n");
 	printf("-p --dump-pp-stats             dump packet processor stats at exit\n");
 	printf("\n");
-	printf("-i --analyse-infinite          analyse all packets (default)\n");
-	printf("-t --analyse-timespan <num>    only analyse packets within the last\n");
+	printf("-i --analyze-infinite          analyze all packets (default)\n");
+	printf("-t --analyze-timespan <num>    only analyze packets within the last\n");
 	printf("                               <num> milliseconds\n");
-	printf("-n --analyse-num-packets <num> only analyse last <num> packets\n");
+	printf("-n --analyze-num-packets <num> only analyze last <num> packets\n");
 }

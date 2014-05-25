@@ -19,6 +19,7 @@
 #include <netinet/ip6.h>
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
+#include <arpa/inet.h>
 
 #include <stdio.h>
 #include <inttypes.h>
@@ -81,7 +82,7 @@ struct pp_packet_context {
 	/* src/dst ports */
 	in_port_t       src_port;
 	in_port_t       dst_port;
-	
+
 	/* determined by flow */
 	enum {
 		PP_PKT_DIR_UNKNOWN = 0,

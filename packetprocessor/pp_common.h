@@ -1,6 +1,8 @@
 #ifndef __PP_COMMON_H
 #define __PP_COMMON_H
 
+#define _GNU_SOURCE
+
 #include <stdio.h>
 #include <errno.h>
 #include <stdint.h>

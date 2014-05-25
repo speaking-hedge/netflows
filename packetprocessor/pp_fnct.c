@@ -1,5 +1,7 @@
 #include <pp_fnct.h>
 
+static int __pp_create_hash(struct pp_config *pp_ctx, char **hash);
+
 /**
  * @brief init the given ctx
  * @param pp_ctx to initialize
@@ -27,6 +29,7 @@ int pp_ctx_init(struct pp_config *pp_ctx, void (*packet_handler)(struct pp_confi
 		return 1;
 	}
 
+	pthread_mutex_init(&pp_ctx->stats_lock, NULL);
 	pp_ctx->unique_flows = 0;
 	pp_ctx->packets_seen = 0;
 	pp_ctx->packets_taken = 0;
@@ -35,11 +38,16 @@ int pp_ctx_init(struct pp_config *pp_ctx, void (*packet_handler)(struct pp_confi
 
 	pp_ctx->rest_backend_url = NULL;
 
-	pp_ctx->pp_analysers = NULL;
-	pp_ctx->pp_analyser_num = 0;
+	pp_ctx->analyzers = NULL;
+	pp_ctx->analyzer_num = 0;
 
-	pp_ctx->analyser_mode = PP_ANALYSER_MODE_INFINITY;
-	pp_ctx->analyser_mode_val = 0;
+	pp_ctx->analyzer_mode = PP_ANALYZER_MODE_INFINITY;
+	pp_ctx->analyzer_mode_val = 0;
+
+	pthread_cond_init(&pp_ctx->pc_stats, NULL);
+	pthread_mutex_init(&pp_ctx->pm_stats, NULL);
+	pthread_cond_init(&pp_ctx->pc_report, NULL);
+	pthread_mutex_init(&pp_ctx->pm_report, NULL);
 
 	return 0;
 }
@@ -49,6 +57,9 @@ int pp_ctx_init(struct pp_config *pp_ctx, void (*packet_handler)(struct pp_confi
  * @param pp_ctx to clean up
  */
 void pp_ctx_cleanup(struct pp_config *pp_ctx) {
+
+	int b = 0;
+	struct pp_flow *cur_flow, *next_flow;
 
 	free(pp_ctx->packet_source);
 	pp_ctx->packet_source = NULL;
@@ -69,24 +80,29 @@ void pp_ctx_cleanup(struct pp_config *pp_ctx) {
 
 	pp_live_shutdown(pp_ctx);
 
+	for (b = 0; b < pp_ctx->flow_table->size; b++) {
+		if (pp_ctx->flow_table->buckets[b] != NULL) {
+			cur_flow = pp_ctx->flow_table->buckets[b];
+			do {
+				next_flow = cur_flow->next_flow;
+
+				pp_detach_analyzers_from_flow(pp_ctx, cur_flow);
+
+				cur_flow = next_flow;
+			} while (cur_flow);
+		}
+	}
+
 	pp_flow_table_delete(pp_ctx->flow_table);
 	pp_ctx->flow_table = NULL;
 
 	free(pp_ctx->rest_backend_url);
 	pp_ctx->rest_backend_url = NULL;
-}
 
-/**
- * @brief dump current state using selected output target and format
- * @param pp_ctx holds the config of pp
- * @note ...for sure this action must use some locking on the central data...
- */
-void pp_dump_state(struct pp_config *pp_ctx) {
-	/* TODO */
-	printf("*** dump state ***\n");
-	if (pp_ctx->job_id) {
-		printf("{job-id: \"%s\"}\n", pp_ctx->job_id);
-	}
+	pthread_cond_destroy(&pp_ctx->pc_stats);
+	pthread_mutex_destroy(&pp_ctx->pm_stats);
+	pthread_cond_destroy(&pp_ctx->pc_report);
+	pthread_mutex_destroy(&pp_ctx->pm_report);
 }
 
 /**
@@ -102,7 +118,7 @@ int pp_check_file(struct pp_config *pp_ctx) {
 	pp_pcap_close(pp_ctx);
 
 	if (!rc && (pp_ctx->processing_options & PP_PROC_OPT_CREATE_HASH)) {
-		if(pp_create_hash(pp_ctx, &hash)) {
+		if(__pp_create_hash(pp_ctx, &hash)) {
 			rc = 1;
 		} else {
 			printf("%s\n", hash);
@@ -200,7 +216,7 @@ int pp_live_init(struct pp_config *pp_ctx) {
  * @retval 0 if capture runs/finish without errors
  * @retval 1 on error during capture
  */
-int pp_live_capture(struct pp_config *pp_ctx, volatile int *run, volatile int *dump) {
+int pp_live_capture(struct pp_config *pp_ctx, volatile int *run) {
 
 	uint8_t buf[9000];
 	int inb;
@@ -231,10 +247,6 @@ int pp_live_capture(struct pp_config *pp_ctx, volatile int *run, volatile int *d
 					/* NOTE: packet direction -> src_addr.sll_pkttype, see man packet */
 				}
 		} /* __poll */
-		if (*dump) {
-			pp_dump_state(pp_ctx);
-			*dump = 0;
-		}
 	} /* __while_run */
 
 	return 0;
@@ -298,7 +310,7 @@ static int __pp_live_check_perm(void) {
  * @retval 0 if hash was created
  * @retval 1 on error
  */
-int pp_create_hash(struct pp_config *pp_ctx, char **hash) {
+static int __pp_create_hash(struct pp_config *pp_ctx, char **hash) {
 
 	gcry_md_hd_t hd;
 	FILE *fh = NULL;
@@ -403,4 +415,59 @@ int pp_get_proto_name(uint layer, uint32_t protocol, char* buf, size_t buf_len) 
 
 	strncpy(buf, "unknown", buf_len);
 	return 1;
+}
+
+/**
+ * @brief attach and init analyzers to flow
+ * @param pp_ctx context of the packetprozessor
+ * @param flow to attach the analyzers to
+ * @retval 0 on success
+ * @retval 1 on error
+ */
+inline int pp_attach_analyzers_to_flow(struct pp_config *pp_ctx, struct pp_flow *flow_ctx) {
+
+	int a = 0;
+
+	pthread_mutex_lock(&flow_ctx->lock);
+
+	if (!(flow_ctx->analyzer_data = calloc(pp_ctx->analyzer_num, sizeof(struct pp_analyzer_store_void)))) {
+		pthread_mutex_unlock(&flow_ctx->lock);
+		return 1;
+	}
+
+	/* init flow local data for each analyzer */
+	for (a = 0; a < pp_ctx->analyzer_num; a++) {
+		pp_ctx->analyzers[a].init(pp_ctx->analyzers[a].idx,
+									 flow_ctx,
+									 pp_ctx->analyzer_mode,
+									 pp_ctx->analyzer_mode_val);
+	}
+
+	pthread_mutex_unlock(&flow_ctx->lock);
+
+	return 0;
+}
+
+/**
+ * @brief detach and free analyzers from flow
+ * @param pp_ctx context of the packetprozessor
+ * @param flow to free the analyzers for
+ */
+inline void pp_detach_analyzers_from_flow(struct pp_config *pp_ctx, struct pp_flow *flow_ctx) {
+
+	int a = 0;
+
+	pthread_mutex_lock(&flow_ctx->lock);
+
+	/* init flow local data for each analyzer */
+	for (a = 0; a < pp_ctx->analyzer_num; a++) {
+		pp_ctx->analyzers[a].destroy(pp_ctx->analyzers[a].idx,
+									 flow_ctx);
+	}
+
+	free(flow_ctx->analyzer_data);
+	flow_ctx->analyzer_data = NULL;
+
+	pthread_mutex_unlock(&flow_ctx->lock);
+
 }

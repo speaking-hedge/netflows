@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 #include <time.h>
+#include <pthread.h>
+#include <arpa/inet.h>
 
 #include <pp_decap.h>
 
@@ -60,10 +62,14 @@ struct pp_flow {
 	/* last time we got a packet for the flow in usec */
 	uint64_t last_seen;
 
-	/* analysers per flow data storage */
-	void **analyser_data;
-	/* count number of analyser_data entries */
-	int analyser_data_num;
+	/* analyzers per flow data storage */
+	void **analyzer_data;
+
+	/* count number of analyzer_data entries (=number of analyzers available)*/
+	int analyzer_data_num;
+
+	/* per flow lock */
+	pthread_mutex_t lock;
 };
 
 struct pp_flow_table {
@@ -79,11 +85,13 @@ struct pp_flow_table {
 	uint32_t size;
 };
 
-inline uint32_t __pp_flow_fold_addresses(struct pp_packet_context *pkt_ctx, int *err);
+uint32_t __pp_flow_fold_addresses(struct pp_packet_context *pkt_ctx, int *err);
 struct pp_flow_table* pp_flow_table_create(uint32_t size,
 										   void (*flow_delete_fntc)(struct pp_flow*),
 										   uint32_t (*hash_fnct)(uint32_t key));
+
 void pp_flow_table_delete(struct pp_flow_table *table);
+void pp_flow_destroy(struct pp_flow *flow_ctx);
 
 struct pp_flow* pp_flow_construct(struct pp_packet_context *pkt_ctx);
 
@@ -93,5 +101,6 @@ struct pp_flow* pp_flow_table_get_flow(struct pp_flow_table *table,
 
 void pp_flow_dump(struct pp_flow *flow);
 void pp_flow_table_dump(struct pp_flow_table *table);
+void pp_flow_table_stats(struct pp_flow_table *table);
 
 #endif /* __PP_FLOW */

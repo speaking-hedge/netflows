@@ -3,6 +3,9 @@
 static inline uint32_t __pp_thomas_wang_hash32(uint32_t a);
 static inline void __pp_flow_update(struct pp_flow *flow, struct pp_packet_context *pkt_ctx);
 
+/* from pp_fnct */
+extern int pp_get_proto_name(uint layer, uint32_t protocol, char* buf, size_t buf_len);
+
 /**
  * @brief fast hash function by Thomas Wang
  * @note: see http://burtleburtle.net/bob/hash/integer.html
@@ -62,6 +65,8 @@ struct pp_flow_table* pp_flow_table_create(uint32_t size,
  */
 static inline void __pp_flow_update(struct pp_flow *flow, struct pp_packet_context *pkt_ctx) {
 
+	pthread_mutex_lock(&flow->lock);
+
 	flow->last_seen = pkt_ctx->timestamp;
 
 	if (memcmp(&flow->ep_a.ip.addr.v6, &pkt_ctx->src_addr.v6, sizeof(pkt_ctx->src_addr.v6))) {
@@ -77,6 +82,8 @@ static inline void __pp_flow_update(struct pp_flow *flow, struct pp_packet_conte
 	}
 	flow->data_cum.packets++;
 	flow->data_cum.bytes += pkt_ctx->length;
+
+	pthread_mutex_unlock(&flow->lock);
 }
 
 /**
@@ -137,10 +144,12 @@ struct pp_flow* pp_flow_construct(struct pp_packet_context *pkt_ctx) {
 	static uint32_t flow_ids = 0;
 
 	if (!(flow = calloc(1, sizeof(struct pp_flow)))) {
+		printf("%s:%d calloc failed\n", __FUNCTION__, __LINE__);
 		return NULL;
 	}
 
 	flow->id = flow_ids++;
+	pthread_mutex_init(&flow->lock, NULL);
 	memcpy(flow->protocols, pkt_ctx->protocols, sizeof(pkt_ctx->protocols));
 
 	flow->ep_a.ip.addr.v6 = pkt_ctx->src_addr.v6;
@@ -213,6 +222,16 @@ struct pp_flow* pp_flow_table_get_flow(struct pp_flow_table *table,
 }
 
 /**
+ * @brief free flow context
+ * @param flow_ctx the flow to be freed
+ */
+void pp_flow_destroy(struct pp_flow *flow_ctx) {
+
+	assert(flow_ctx->analyzer_data == NULL);
+	free(flow_ctx);
+}
+
+/**
  * @brief free all elements in the table
  * @param table to be freed
  */
@@ -229,7 +248,7 @@ void pp_flow_table_delete(struct pp_flow_table *table) {
 				if (table->flow_delete_fntc) {
 					table->flow_delete_fntc(cur_flow);
 				} else {
-					free(cur_flow);
+					pp_flow_destroy(cur_flow);
 				}
 				cur_flow = next_flow;
 			} while (cur_flow);
@@ -310,6 +329,8 @@ void pp_flow_dump(struct pp_flow *flow) {
 		inet_ntop(AF_INET6, &(flow->ep_b.ip.addr.v6), ipdst, INET6_ADDRSTRLEN);
 	}
 
+	pthread_mutex_lock(&flow->lock);
+
 	printf("-----------------------------------------------\n");
 	pp_get_proto_name(PP_OSI_LAYER_3, flow->protocols[PP_OSI_LAYER_3], name_buf, 31);
 	printf("%s  %s:%d --> %s:%d\n", name_buf,
@@ -323,6 +344,8 @@ void pp_flow_dump(struct pp_flow *flow) {
 	printf("bytes downstream:   %" PRIu64 "\n", flow->data_downstream.bytes);
 	printf("packets cum:        %" PRIu64 "\n", flow->data_cum.packets);
 	printf("bytes cum:          %" PRIu64 "\n", flow->data_cum.bytes);
+
+	pthread_mutex_unlock(&flow->lock);
 }
 
 /**
@@ -331,9 +354,11 @@ void pp_flow_dump(struct pp_flow *flow) {
  */
 void pp_flow_table_dump(struct pp_flow_table *table) {
 
-	/* TODO: apply locking */
+	/* TODO: locking is currently only applied on flow level
+	 * check if the table must also be protected
+	 */
 	int b = 0;
-	struct pp_flow *cur_flow, *next_flow;
+	struct pp_flow *cur_flow;
 
 	for (b = 0; b < table->size; b++) {
 		if (table->buckets[b] != NULL) {

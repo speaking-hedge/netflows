@@ -1,6 +1,7 @@
 #ifndef __PP_CONTEXT
 #define __PP_CONTEXT
 
+#include <pthread.h>
 #include <pp_analyser.h>
 #include <pp_flow.h>
 
@@ -9,8 +10,8 @@ struct pp_config {
 
 	enum pp_action {
 		PP_ACTION_UNDEFINED,
-		PP_ACTION_ANALYSE_FILE,
-		PP_ACTION_ANALYSE_LIVE,
+		PP_ACTION_ANALYZE_FILE,
+		PP_ACTION_ANALYZE_LIVE,
 		PP_ACTION_CHECK
 	} action;
 
@@ -40,6 +41,7 @@ struct pp_config {
 	/* holds the flow hash table */
 	struct pp_flow_table *flow_table;
 
+	pthread_mutex_t stats_lock;
 	uint32_t unique_flows;
 	uint64_t packets_seen;
 	uint64_t packets_taken;
@@ -49,11 +51,19 @@ struct pp_config {
 	char *rest_backend_url;
 
 	/* packet analysers available */
-	struct pp_analyser *pp_analysers;
-	int pp_analyser_num;
+	struct pp_analyzer *analyzers;
+	int analyzer_num;
 
-	enum PP_ANALYSER_MODES analyser_mode;
-	int32_t analyser_mode_val;
+	enum PP_ANALYZER_MODES analyzer_mode;
+	int32_t analyzer_mode_val;
+
+	pthread_t pt_stats;
+	pthread_cond_t pc_stats;
+	pthread_mutex_t pm_stats;
+
+	pthread_t pt_report;
+	pthread_cond_t pc_report;
+	pthread_mutex_t pm_report;
 };
 
 #endif /* __PP_CONTEXT */

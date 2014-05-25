@@ -1,0 +1,121 @@
+#include <pp_analyser.h>
+
+struct __pp_test_store_packetcount {
+	uint16_t a;
+	uint16_t b;
+	unsigned c;
+};
+
+/* create storage struct*/
+PP_ANALYZER_STORE_CREATE(pp_test_packetcount_01, struct __pp_test_store_packetcount);
+PP_ANALYZER_STORE_CREATE(pp_test_packetcount_02, struct __pp_test_store_packetcount);
+PP_ANALYZER_STORE_CREATE(pp_test_packetcount_03, struct __pp_test_store_packetcount);
+
+#suite analyzer_store
+
+/* we can share one callback cause the dereferenced data has always of the same structure */
+static void analyze_callback(void *data, uint64_t ts, int direction) {
+
+	ck_assert_msg(data != NULL, "data points to NULL in callback.\n");
+	ck_assert_msg(((struct pp_test_packetcount_01_data *)data)->data.b == 2*((struct pp_test_packetcount_01_data *)data)->data.a, "b(=%d) != 2*a(=%d)",((struct pp_test_packetcount_01_data *)data)->data.b, ((struct pp_test_packetcount_01_data *)data)->data.a);
+	ck_assert_msg(((struct pp_test_packetcount_01_data *)data)->data.c == ((struct pp_test_packetcount_01_data *)data)->data.a, "c != a");
+	ck_assert_msg(((struct pp_test_packetcount_01_data *)data)->timestamp == 3*((struct pp_test_packetcount_01_data *)data)->data.a, "timestamp(=%" PRIu64 ") != 3*a (=%d)",((struct pp_test_packetcount_01_data *)data)->timestamp, ((struct pp_test_packetcount_01_data *)data)->data.a );
+	ck_assert_msg(((struct pp_test_packetcount_01_data *)data)->direction == ((struct pp_test_packetcount_01_data *)data)->data.a%2?PP_PKT_DIR_UPSTREAM:PP_PKT_DIR_DOWNSTREAM, "invalid //direction");
+}
+
+#test test_case_buffer_full
+
+	struct pp_flow flow_ctx;
+	int i = 0;
+	int packet_count = 53;
+	struct pp_test_packetcount_01_data *data = NULL;
+	struct pp_packet_context packet;
+
+	flow_ctx.analyzer_data = calloc(1, sizeof(struct pp_analyzer_store_void));
+	ck_assert_msg(flow_ctx.analyzer_data != NULL, "calloc failed for analyzer_data");
+
+	PP_ANALYZER_STORE_INIT(pp_test_packetcount_01, 0, &flow_ctx, PP_ANALYZER_MODE_PACKETCOUNT, packet_count);
+
+	for (i = 0; i < packet_count; i++) {
+
+		packet.timestamp = i * 3;
+		packet.direction = i%2?PP_PKT_DIR_UPSTREAM:PP_PKT_DIR_DOWNSTREAM;
+
+		data = pp_analyzer_storage_get_next_location(0, &packet, &flow_ctx);
+
+		ck_assert_msg(data != NULL, "failed to get next write location");
+
+		/* set some testdata */
+		data->data.a = i;
+		data->data.b = i+i;
+		data->data.c = i;
+	}
+
+	i = pp_analyzer_callback_for_each_entry(0, &flow_ctx, &analyze_callback);
+
+	ck_assert_msg(i == packet_count, "missing analyzse callbacks. called %d times but must be called %d times.", i, packet_count);
+
+
+#test test_case_buffer_not_full
+
+	struct pp_flow flow_ctx;
+	int i = 0;
+	int packet_count = 30;
+	struct pp_test_packetcount_02_data *data = NULL;
+	struct pp_packet_context packet;
+
+	flow_ctx.analyzer_data = calloc(1, sizeof(struct pp_analyzer_store_void));
+	ck_assert_msg(flow_ctx.analyzer_data != NULL, "calloc failed for analyzer_data");
+
+	PP_ANALYZER_STORE_INIT(pp_test_packetcount_02, 0, &flow_ctx, PP_ANALYZER_MODE_PACKETCOUNT, packet_count);
+
+	for (i = 0; i < 17; i++) {
+
+		packet.timestamp = i * 3;
+		packet.direction = i%2?PP_PKT_DIR_UPSTREAM:PP_PKT_DIR_DOWNSTREAM;
+
+		data = pp_analyzer_storage_get_next_location(0, &packet, &flow_ctx);
+
+		ck_assert_msg(data != NULL, "failed to get next write location");
+
+		/* set some testdata */
+		data->data.a = i;
+		data->data.b = i+i;
+		data->data.c = i;
+	}
+
+	i = pp_analyzer_callback_for_each_entry(0, &flow_ctx, &analyze_callback);
+
+	ck_assert_msg(i == 17, "missing analyzse callbacks. called %d times but must be called %d times.", i, packet_count);
+
+#test test_case_buffer_over_full
+
+	struct pp_flow flow_ctx;
+	int i = 0;
+	int packet_count = 3000;
+	struct pp_test_packetcount_03_data *data = NULL;
+	struct pp_packet_context packet;
+
+	flow_ctx.analyzer_data = calloc(1, sizeof(struct pp_analyzer_store_void));
+	ck_assert_msg(flow_ctx.analyzer_data != NULL, "calloc failed for analyzer_data");
+
+	PP_ANALYZER_STORE_INIT(pp_test_packetcount_03, 0, &flow_ctx, PP_ANALYZER_MODE_PACKETCOUNT, packet_count);
+
+	for (i = 0; i < packet_count +  1600; i++) {
+
+		packet.timestamp = i * 3;
+		packet.direction = i%2?PP_PKT_DIR_UPSTREAM:PP_PKT_DIR_DOWNSTREAM;
+
+		data = pp_analyzer_storage_get_next_location(0, &packet, &flow_ctx);
+
+		ck_assert_msg(data != NULL, "failed to get next write location");
+
+		/* set some testdata */
+		data->data.a = i;
+		data->data.b = i+i;
+		data->data.c = i;
+	}
+
+	i = pp_analyzer_callback_for_each_entry(0, &flow_ctx, &analyze_callback);
+
+	ck_assert_msg(i == packet_count, "missing analyzse callbacks. called %d times but must be called %d times.", i, packet_count);

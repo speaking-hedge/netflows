@@ -18,7 +18,8 @@
 
 int pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx);
 
-void pp_catch_dump(int signal);
+void pp_catch_sigusr1(int signal);
+void pp_catch_sigusr2(int signal);
 void pp_catch_term(int signal);
 
 void pp_usage(void);
