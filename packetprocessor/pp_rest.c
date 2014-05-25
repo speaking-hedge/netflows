@@ -42,7 +42,7 @@ static int __pp_rest_send(const char* url)
  */
 int pp_rest_job_state(const char* url, const char* job_hash, enum RestJobState state)
 {
-	if (state > 6 || state < 0) return 1; // invalid state id
+	if (state > 6) return 1;
 
 	char *suffix = "/accessjobs/updateState?";
 	char param_stateid[] = "stateid=0";
