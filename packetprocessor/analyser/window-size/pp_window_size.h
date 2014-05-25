@@ -1,4 +1,4 @@
-#include <pp_analyser.h>
+#include <pp_analyzer.h>
 #include <pp_flow.h>
 
 /* number of statistic entries we need to generate a reliable report */

@@ -1,4 +1,4 @@
-#include <pp_analyser.h>
+#include <pp_analyzer.h>
 
 struct __pp_test_store_packetcount {
 	uint16_t a;

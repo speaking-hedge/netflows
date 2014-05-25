@@ -1,4 +1,4 @@
-#include <pp_analyser.h>
+#include <pp_analyzer.h>
 
 /**
  * @brief add a new analyzer to the chain of analyzers

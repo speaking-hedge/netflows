@@ -3,18 +3,18 @@
 volatile sig_atomic_t run;
 
 
-static void __pp_set_action(struct pp_config *pp_ctx, enum pp_action action, char *packet_source);
-static int __pp_run_pcap_file(struct pp_config *pp_ctx);
-static int __pp_run_live(struct pp_config *pp_ctx);
-static void __pp_packet_handler(struct pp_config *pp_ctx, uint8_t *data, uint16_t len, uint64_t ts);
-static void __pp_ctx_dump(struct pp_config *pp_ctx);
-static int __rest_set_job_state(struct pp_config *pp_ctx, enum RestJobState state);
+static void __pp_set_action(struct pp_context *pp_ctx, enum pp_action action, char *packet_source);
+static int __pp_run_pcap_file(struct pp_context *pp_ctx);
+static int __pp_run_live(struct pp_context *pp_ctx);
+static void __pp_packet_handler(struct pp_context *pp_ctx, uint8_t *data, uint16_t len, uint64_t ts);
+static void __pp_ctx_dump(struct pp_context *pp_ctx);
+static int __rest_set_job_state(struct pp_context *pp_ctx, enum RestJobState state);
 
 static void* __pp_show_stats_thread(void *arg);
 static void* __pp_report_thread(void *arg);
 
 /* context of the packet processor */
-static struct pp_config pp_ctx;
+static struct pp_context pp_ctx;
 
 int main(int argc, char **argv) {
 
@@ -89,7 +89,7 @@ int main(int argc, char **argv) {
 
 static void* __pp_show_stats_thread(void *arg) {
 
-	struct pp_config *pp_ctx = arg;
+	struct pp_context *pp_ctx = arg;
 	assert(arg);
 
 	while(run) {
@@ -117,7 +117,7 @@ static void* __pp_show_stats_thread(void *arg) {
 
 static void* __pp_report_thread(void *arg) {
 
-	struct pp_config *pp_ctx = arg;
+	struct pp_context *pp_ctx = arg;
 	int b = 0, a = 0;
 	struct pp_flow *flow = NULL;
 	char *report_data = NULL;
@@ -179,7 +179,7 @@ static void* __pp_report_thread(void *arg) {
  * @param len number of bytes in the packet
  * @param timestamp the packet was received
  */
-static void __pp_packet_handler(struct pp_config *pp_ctx,
+static void __pp_packet_handler(struct pp_context *pp_ctx,
 							uint8_t *data,
 							uint16_t len,
 							uint64_t ts) {
@@ -261,7 +261,7 @@ static void __pp_packet_handler(struct pp_config *pp_ctx,
 	pthread_mutex_unlock(&pp_ctx->stats_lock);
 }
 
-static int __rest_set_job_state(struct pp_config *pp_ctx, enum RestJobState state) {
+static int __rest_set_job_state(struct pp_context *pp_ctx, enum RestJobState state) {
 	if (pp_ctx->processing_options & PP_PROC_OPT_USE_REST) {
 		if (pp_ctx->job_id == NULL) {
 			fprintf(stderr,"REST requires job-id.\n");
@@ -274,7 +274,7 @@ static int __rest_set_job_state(struct pp_config *pp_ctx, enum RestJobState stat
 	}
 }
 
-static int __pp_run_pcap_file(struct pp_config *pp_ctx) {
+static int __pp_run_pcap_file(struct pp_context *pp_ctx) {
 
 	const uint8_t *pkt = NULL;
 	struct pcap_pkthdr hdr;
@@ -292,7 +292,7 @@ static int __pp_run_pcap_file(struct pp_config *pp_ctx) {
 	return 0;
 }
 
-static int __pp_run_live(struct pp_config *pp_ctx) {
+static int __pp_run_live(struct pp_context *pp_ctx) {
 
 	int rc = 0;
 
@@ -325,7 +325,7 @@ static int __pp_run_live(struct pp_config *pp_ctx) {
  * @retval 0 on success
  * @retval 1 on error
  */
-int pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx) {
+int pp_parse_cmd_line(int argc, char **argv, struct pp_context *pp_ctx) {
 
 	struct option options[] = {
 		{"help", 0, NULL, 'h'},
@@ -526,7 +526,7 @@ void pp_catch_term(int sig) {
  * @param action that is requested
  * @param packet_source points to a file or a network interface name
  */
-static void __pp_set_action(struct pp_config *pp_ctx, enum pp_action action, char *packet_source) {
+static void __pp_set_action(struct pp_context *pp_ctx, enum pp_action action, char *packet_source) {
 	if (pp_ctx->action != PP_ACTION_UNDEFINED && pp_ctx->action != action) {
 		fprintf(stderr, "more then one action requested but only one at a time supported. abort.\n");
 		exit(1);
@@ -543,7 +543,7 @@ static void __pp_set_action(struct pp_config *pp_ctx, enum pp_action action, cha
  * @brief dump status data
  * @param pp_ctx point to the context to be dumped
  */
-static void __pp_ctx_dump(struct pp_config *pp_ctx) {
+static void __pp_ctx_dump(struct pp_context *pp_ctx) {
 
 	static char* analyzer_mode_str[PP_ANALYZER_MODE_EOL] = {
 		[PP_ANALYZER_MODE_UNKNOWN] = "unknown",

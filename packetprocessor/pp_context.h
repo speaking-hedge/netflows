@@ -2,11 +2,11 @@
 #define __PP_CONTEXT
 
 #include <pthread.h>
-#include <pp_analyser.h>
+#include <pp_analyzer.h>
 #include <pp_flow.h>
 
 
-struct pp_config {
+struct pp_context {
 
 	enum pp_action {
 		PP_ACTION_UNDEFINED,
@@ -23,7 +23,7 @@ struct pp_config {
 	pcap_t *pcap_handle;
 	int packet_socket;
 
-	void (*packet_handler_cb)(struct pp_config *pp_ctx, uint8_t *data, uint16_t len, uint64_t timestamp);
+	void (*packet_handler_cb)(struct pp_context *pp_ctx, uint8_t *data, uint16_t len, uint64_t timestamp);
 
 	enum {
 		PP_PROC_OPT_NONE             = 0,

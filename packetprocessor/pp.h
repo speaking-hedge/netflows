@@ -8,7 +8,7 @@
 #include <pp_context.h>
 #include <pp_fnct.h>
 #include <pp_decap.h>
-#include <pp_analyser.h>
+#include <pp_analyzer.h>
 #include <pp_rest.h>
 
 #include <pp_window_size.h>
@@ -16,7 +16,7 @@
 
 #define PPVERSION "0.1"
 
-int pp_parse_cmd_line(int argc, char **argv, struct pp_config *pp_ctx);
+int pp_parse_cmd_line(int argc, char **argv, struct pp_context *pp_ctx);
 
 void pp_catch_sigusr1(int signal);
 void pp_catch_sigusr2(int signal);

@@ -1,6 +1,6 @@
 #include <pp_fnct.h>
 
-static int __pp_create_hash(struct pp_config *pp_ctx, char **hash);
+static int __pp_create_hash(struct pp_context *pp_ctx, char **hash);
 
 /**
  * @brief init the given ctx
@@ -8,7 +8,7 @@ static int __pp_create_hash(struct pp_config *pp_ctx, char **hash);
  * @retval 0 on success
  * @retval 1 on error
  */
-int pp_ctx_init(struct pp_config *pp_ctx, void (*packet_handler)(struct pp_config *pp_ctx, uint8_t *data, uint16_t len, uint64_t timestamp)) {
+int pp_ctx_init(struct pp_context *pp_ctx, void (*packet_handler)(struct pp_context *pp_ctx, uint8_t *data, uint16_t len, uint64_t timestamp)) {
 
 	pp_ctx->action = PP_ACTION_UNDEFINED;
 
@@ -56,7 +56,7 @@ int pp_ctx_init(struct pp_config *pp_ctx, void (*packet_handler)(struct pp_confi
  * @brief cleanup the pp context
  * @param pp_ctx to clean up
  */
-void pp_ctx_cleanup(struct pp_config *pp_ctx) {
+void pp_ctx_cleanup(struct pp_context *pp_ctx) {
 
 	int b = 0;
 	struct pp_flow *cur_flow, *next_flow;
@@ -111,7 +111,7 @@ void pp_ctx_cleanup(struct pp_config *pp_ctx) {
  * @retval (0) if file is valid
  * @retval (1) if file is invalid
  */
-int pp_check_file(struct pp_config *pp_ctx) {
+int pp_check_file(struct pp_context *pp_ctx) {
 
 	int rc = pp_pcap_open(pp_ctx);
 	char *hash = NULL;
@@ -135,7 +135,7 @@ int pp_check_file(struct pp_config *pp_ctx) {
  * @retval (0) if file was opened successfully
  * @retval (1) if open file failed
  */
-int pp_pcap_open(struct pp_config *pp_ctx) {
+int pp_pcap_open(struct pp_context *pp_ctx) {
 
 	char errbuf[PCAP_ERRBUF_SIZE] = {'\0'};
 	pp_pcap_close(pp_ctx);
@@ -154,7 +154,7 @@ int pp_pcap_open(struct pp_config *pp_ctx) {
  * @retval (0) if there was an open file that could be closed
  * @retval (1) no open file or error
  */
-int pp_pcap_close(struct pp_config *pp_ctx) {
+int pp_pcap_close(struct pp_context *pp_ctx) {
 
 	if (pp_ctx->pcap_handle) {
 		pcap_close(pp_ctx->pcap_handle);
@@ -170,7 +170,7 @@ static int __pp_live_check_perm(void);
  * @brief init traffic sniffing via netfilter hook
  * @retval 0 on success
  */
-int pp_live_init(struct pp_config *pp_ctx) {
+int pp_live_init(struct pp_context *pp_ctx) {
 
 	struct sockaddr_ll ll_addr;
 
@@ -216,7 +216,7 @@ int pp_live_init(struct pp_config *pp_ctx) {
  * @retval 0 if capture runs/finish without errors
  * @retval 1 on error during capture
  */
-int pp_live_capture(struct pp_config *pp_ctx, volatile int *run) {
+int pp_live_capture(struct pp_context *pp_ctx, volatile int *run) {
 
 	uint8_t buf[9000];
 	int inb;
@@ -258,7 +258,7 @@ int pp_live_capture(struct pp_config *pp_ctx, volatile int *run) {
  * @retval 0 if there was a socket that could be closed
  * @retval 1 on error / no open socket found
  */
-int pp_live_shutdown(struct pp_config *pp_ctx) {
+int pp_live_shutdown(struct pp_context *pp_ctx) {
 
 	if (pp_ctx->packet_socket) {
 		close(pp_ctx->packet_socket);
@@ -310,7 +310,7 @@ static int __pp_live_check_perm(void) {
  * @retval 0 if hash was created
  * @retval 1 on error
  */
-static int __pp_create_hash(struct pp_config *pp_ctx, char **hash) {
+static int __pp_create_hash(struct pp_context *pp_ctx, char **hash) {
 
 	gcry_md_hd_t hd;
 	FILE *fh = NULL;
@@ -424,7 +424,7 @@ int pp_get_proto_name(uint layer, uint32_t protocol, char* buf, size_t buf_len) 
  * @retval 0 on success
  * @retval 1 on error
  */
-inline int pp_attach_analyzers_to_flow(struct pp_config *pp_ctx, struct pp_flow *flow_ctx) {
+inline int pp_attach_analyzers_to_flow(struct pp_context *pp_ctx, struct pp_flow *flow_ctx) {
 
 	int a = 0;
 
@@ -453,7 +453,7 @@ inline int pp_attach_analyzers_to_flow(struct pp_config *pp_ctx, struct pp_flow 
  * @param pp_ctx context of the packetprozessor
  * @param flow to free the analyzers for
  */
-inline void pp_detach_analyzers_from_flow(struct pp_config *pp_ctx, struct pp_flow *flow_ctx) {
+inline void pp_detach_analyzers_from_flow(struct pp_context *pp_ctx, struct pp_flow *flow_ctx) {
 
 	int a = 0;
 
