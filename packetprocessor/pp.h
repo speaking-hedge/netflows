@@ -10,6 +10,7 @@
 #include <pp_decap.h>
 #include <pp_analyzer.h>
 #include <pp_rest.h>
+#include <pp_flowtop.h>
 
 #include <pp_window_size.h>
 

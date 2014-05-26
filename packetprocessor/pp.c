@@ -12,6 +12,7 @@ static int __rest_set_job_state(struct pp_context *pp_ctx, enum RestJobState sta
 
 static void* __pp_show_stats_thread(void *arg);
 static void* __pp_report_thread(void *arg);
+static void* __pp_flowtop_thread(void *arg);
 
 /* context of the packet processor */
 static struct pp_context pp_ctx;
@@ -48,6 +49,14 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
+	if (pp_ctx.processing_options & PP_PROC_OPT_SHOW_FLOWTOP) {
+		pp_flowtop_init();
+		if(pthread_create(&pp_ctx.pt_flowtop, NULL, &__pp_flowtop_thread, &pp_ctx)) {
+			fprintf(stderr, "failed to create flowtop thread. abort.\n");
+			return 1;
+		}
+	}
+
 	switch(pp_ctx.action) {
 		case PP_ACTION_CHECK:
 			rc = pp_check_file(&pp_ctx);
@@ -66,6 +75,10 @@ int main(int argc, char **argv) {
 		default:
 			fprintf(stderr, "unknown action specified. abort.\n");
 			rc = 1;
+	}
+
+	if (pp_ctx.processing_options & PP_PROC_OPT_SHOW_FLOWTOP) {
+		pp_flowtop_destroy();
 	}
 
 	/* dump selected stats on exit */
@@ -172,6 +185,51 @@ static void* __pp_report_thread(void *arg) {
 	return NULL;
 }
 
+static void* __pp_flowtop_thread(void *arg) {
+
+	struct pp_context *pp_ctx = arg;
+
+	assert(arg);
+
+	while(run) {
+
+		pp_flowtop_header_print(pp_ctx);
+		pp_flowtop_flow_print(pp_ctx);
+
+		pp_flowtop_draw();
+
+		sleep(pp_ctx->flowtop_interval);
+	}
+
+	return NULL;
+}
+
+static int __pp_flow_list_add(struct pp_context *pp_ctx, struct pp_flow *flow_ctx) {
+
+	pthread_mutex_lock(&pp_ctx->flow_list_lock);
+
+	if (unlikely(!pp_ctx->flow_list.head)) {
+
+		if (!(pp_ctx->flow_list.head = pp_ctx->flow_list.tail = calloc(1, sizeof(struct pp_flow_list_entry)))) {
+			pthread_mutex_unlock(&pp_ctx->flow_list_lock);
+			return 1;
+		}
+		pp_ctx->flow_list.head->flow = flow_ctx;
+
+	} else {
+
+		if (!(pp_ctx->flow_list.tail->next = calloc(1, sizeof(struct pp_flow_list_entry)))) {
+			pthread_mutex_unlock(&pp_ctx->flow_list_lock);
+				return 1;
+		}
+		pp_ctx->flow_list.tail->next->flow = flow_ctx;
+		pp_ctx->flow_list.tail->next->prev = pp_ctx->flow_list.tail;
+		pp_ctx->flow_list.tail = pp_ctx->flow_list.tail->next;
+	}
+
+	pthread_mutex_unlock(&pp_ctx->flow_list_lock);
+}
+
 /**
  * @brief central packet handler callback, invokes analyzers
  * @param pp_ctx holds the config of pp
@@ -203,23 +261,36 @@ static void __pp_packet_handler(struct pp_context *pp_ctx,
 	rc = pp_decap(data, len, ts, &pkt_ctx, pp_ctx->bp_filter);
 	switch(rc) {
 	case PP_DECAP_OKAY:
+
+		pthread_mutex_lock(&pp_ctx->flow_table_lock);
+
 		/* get flow for current packet and updates flow local counter
 		 * and the packet direction attribute of the packet context
 		 */
 		flow = pp_flow_table_get_flow(pp_ctx->flow_table,
 									  &pkt_ctx, &is_new);
 
+		pthread_mutex_unlock(&pp_ctx->flow_table_lock);
+
 		if (likely(flow)) {
+
+			pthread_mutex_lock(&flow->lock);
 
 			if (unlikely(is_new)) {
 
 				if(pp_attach_analyzers_to_flow(pp_ctx, flow)) {
+					pthread_mutex_unlock(&flow->lock);
 					/* TODO: error handling */
 					return;
 				}
-			}
 
-			pthread_mutex_lock(&flow->lock);
+				/* add flow to flow list */
+				if (__pp_flow_list_add(pp_ctx, flow)) {
+					pthread_mutex_unlock(&flow->lock);
+					/* TODO: error handling */
+					return;
+				}
+			} /* __new_flow */
 
 			/* run selected analyzers */
 			for (a = 0; a < pp_ctx->analyzer_num; a++) {
@@ -261,6 +332,13 @@ static void __pp_packet_handler(struct pp_context *pp_ctx,
 	pthread_mutex_unlock(&pp_ctx->stats_lock);
 }
 
+/**
+ * @brief communicate job state to REST backend
+ * @param pp_ctx context to use
+ * @param state to send
+ * @retval 0 on success
+ * @retval 1 on error
+ */
 static int __rest_set_job_state(struct pp_context *pp_ctx, enum RestJobState state) {
 	if (pp_ctx->processing_options & PP_PROC_OPT_USE_REST) {
 		if (pp_ctx->job_id == NULL) {
@@ -272,6 +350,7 @@ static int __rest_set_job_state(struct pp_context *pp_ctx, enum RestJobState sta
 			return 1;
 		}
 	}
+	return 0;
 }
 
 static int __pp_run_pcap_file(struct pp_context *pp_ctx) {
@@ -346,13 +425,14 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_context *pp_ctx) {
 		{"analyze-infinity", 0, NULL, 'i'},
 		{"analyze-timespan", required_argument, NULL, 't'},
 		{"analyze-num-packets", required_argument, NULL, 'n'},
+		{"flowtop", optional_argument, NULL, 'g'},
 		{NULL, 0, NULL, 0}
 	};
 	int opt = 0, i = 0;
 	char *endptr = NULL;
 
 	while(1) {
-		opt = getopt_long(argc, argv, "hva:l:c:o:jf:J:r::PFTpwit:n:", options, NULL);
+		opt = getopt_long(argc, argv, "hva:l:c:o:jf:J:r::PFTpwit:n:g::", options, NULL);
 		if (opt == -1)
 			break;
 
@@ -466,6 +546,19 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_context *pp_ctx) {
 					exit(1);
 				}
 				break;
+			case 'g':
+				pp_ctx->processing_options |= PP_PROC_OPT_SHOW_FLOWTOP;
+				if (optarg) {
+					errno = 0;
+					pp_ctx->flowtop_interval = strtol(optarg, NULL, 10);
+					if (errno || pp_ctx->flowtop_interval < 1) {
+						fprintf(stderr, "flowtop update interval must be > 1.\n");
+						exit(1);
+					}
+				} else {
+					pp_ctx->flowtop_interval = 5;
+				}
+				break;
 			default:
 				abort();
 		}
@@ -480,6 +573,13 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_context *pp_ctx) {
 	if (pp_ctx->analyzer_mode == PP_ANALYZER_MODE_PACKETCOUNT &&
 		pp_ctx->analyzer_mode_val < WINDOWS_SIZE_ANALYZER_MIN_SAMPLE_COUNT) {
 		fprintf(stderr, "configured analyzer packet count (=%d) < min sample count (=%d) for window size analyzer. abort.\n", pp_ctx->analyzer_mode_val, WINDOWS_SIZE_ANALYZER_MIN_SAMPLE_COUNT);
+		return 1;
+	}
+
+	if ( !(pp_ctx->action & PP_ACTION_ANALYZE_LIVE) &&
+		 (pp_ctx->processing_options & PP_PROC_OPT_SHOW_FLOWTOP)) {
+
+		fprintf(stderr, "flowtop only available in live mode. abort.\n");
 		return 1;
 	}
 
@@ -619,4 +719,7 @@ void pp_usage(void) {
 	printf("-t --analyze-timespan <num>    only analyze packets within the last\n");
 	printf("                               <num> milliseconds\n");
 	printf("-n --analyze-num-packets <num> only analyze last <num> packets\n");
+	printf("\n");
+	printf("-g --flowtop=<time>            show flowtop gui, set update interval to\n");
+	printf("                               <time> seconds (default: 5)\n");
 }

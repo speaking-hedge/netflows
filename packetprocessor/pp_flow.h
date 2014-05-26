@@ -85,6 +85,20 @@ struct pp_flow_table {
 	uint32_t size;
 };
 
+struct pp_flow_list_entry {
+
+	struct pp_flow *flow;
+	struct pp_flow_list_entry *next;
+	struct pp_flow_list_entry *prev;
+};
+
+struct pp_flow_list {
+
+	struct pp_flow_list_entry *head;
+	struct pp_flow_list_entry *tail;
+};
+
+
 uint32_t __pp_flow_fold_addresses(struct pp_packet_context *pkt_ctx, int *err);
 struct pp_flow_table* pp_flow_table_create(uint32_t size,
 										   void (*flow_delete_fntc)(struct pp_flow*),

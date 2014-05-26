@@ -9,6 +9,7 @@ check
 libgcrypt / libgcrypt-dev
 libcap2 / libcap-dev
 libcurl3 / libcurl4-openssl-dev
+libncurses / libncurses-dev
 
 test environment
 ----------------

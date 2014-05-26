@@ -49,6 +49,10 @@ int pp_ctx_init(struct pp_context *pp_ctx, void (*packet_handler)(struct pp_cont
 	pthread_cond_init(&pp_ctx->pc_report, NULL);
 	pthread_mutex_init(&pp_ctx->pm_report, NULL);
 
+	pthread_mutex_init(&pp_ctx->flow_table_lock, NULL);
+	pthread_mutex_init(&pp_ctx->flow_list_lock, NULL);
+	pp_ctx->flow_list.head = pp_ctx->flow_list.tail = NULL;
+
 	return 0;
 }
 
@@ -419,6 +423,7 @@ int pp_get_proto_name(uint layer, uint32_t protocol, char* buf, size_t buf_len) 
 
 /**
  * @brief attach and init analyzers to flow
+ * @note this function is not thread save
  * @param pp_ctx context of the packetprozessor
  * @param flow to attach the analyzers to
  * @retval 0 on success
@@ -427,8 +432,6 @@ int pp_get_proto_name(uint layer, uint32_t protocol, char* buf, size_t buf_len) 
 inline int pp_attach_analyzers_to_flow(struct pp_context *pp_ctx, struct pp_flow *flow_ctx) {
 
 	int a = 0;
-
-	pthread_mutex_lock(&flow_ctx->lock);
 
 	if (!(flow_ctx->analyzer_data = calloc(pp_ctx->analyzer_num, sizeof(struct pp_analyzer_store_void)))) {
 		pthread_mutex_unlock(&flow_ctx->lock);
@@ -442,8 +445,6 @@ inline int pp_attach_analyzers_to_flow(struct pp_context *pp_ctx, struct pp_flow
 									 pp_ctx->analyzer_mode,
 									 pp_ctx->analyzer_mode_val);
 	}
-
-	pthread_mutex_unlock(&flow_ctx->lock);
 
 	return 0;
 }
