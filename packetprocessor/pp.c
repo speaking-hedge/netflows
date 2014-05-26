@@ -228,6 +228,8 @@ static int __pp_flow_list_add(struct pp_context *pp_ctx, struct pp_flow *flow_ct
 	}
 
 	pthread_mutex_unlock(&pp_ctx->flow_list_lock);
+
+	return 0;
 }
 
 /**

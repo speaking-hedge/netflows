@@ -4,6 +4,7 @@
 #include <ncurses.h>
 #include <time.h>
 #include <pp_context.h>
+#include <pp_fnct.h>
 
 void pp_flowtop_init();
 void pp_flowtop_destroy();
