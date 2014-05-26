@@ -5,7 +5,6 @@
 #include <pp_analyzer.h>
 #include <pp_flow.h>
 
-
 struct pp_context {
 
 	enum pp_action {
@@ -74,9 +73,10 @@ struct pp_context {
 	pthread_mutex_t pm_report;
 
 	pthread_t pt_flowtop;
-;
-
+	pthread_t pt_flowtop_keyhandler;
 	uint32_t flowtop_interval;
+	int flowtop_sort_by;
+	int flowtop_sort_order;
 };
 
 #endif /* __PP_CONTEXT */

@@ -59,6 +59,9 @@ struct pp_flow {
 	/* protocol stack */
 	uint32_t protocols[PP_OSI_EOL];
 
+	/* first time we got a packet for the flow in usec */
+	uint64_t first_seen;
+
 	/* last time we got a packet for the flow in usec */
 	uint64_t last_seen;
 

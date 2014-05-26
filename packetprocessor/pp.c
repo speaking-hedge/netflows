@@ -50,7 +50,10 @@ int main(int argc, char **argv) {
 	}
 
 	if (pp_ctx.processing_options & PP_PROC_OPT_SHOW_FLOWTOP) {
-		pp_flowtop_init();
+		if (pp_flowtop_init(&pp_ctx)) {
+			fprintf(stderr, "failed to init flowtop environment. abort.\n");
+			return 1;
+		}
 		if(pthread_create(&pp_ctx.pt_flowtop, NULL, &__pp_flowtop_thread, &pp_ctx)) {
 			fprintf(stderr, "failed to create flowtop thread. abort.\n");
 			return 1;
@@ -188,17 +191,22 @@ static void* __pp_report_thread(void *arg) {
 static void* __pp_flowtop_thread(void *arg) {
 
 	struct pp_context *pp_ctx = arg;
+	uint32_t dt = 0;
 
 	assert(arg);
 
 	while(run) {
 
 		pp_flowtop_header_print(pp_ctx);
-		pp_flowtop_flow_print(pp_ctx);
+
+		if (!(dt % pp_ctx->flowtop_interval)) {
+			pp_flowtop_flow_print(pp_ctx);
+		}
 
 		pp_flowtop_draw();
 
-		sleep(pp_ctx->flowtop_interval);
+		dt++;
+		sleep(1);
 	}
 
 	return NULL;

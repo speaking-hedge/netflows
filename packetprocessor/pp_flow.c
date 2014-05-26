@@ -158,6 +158,9 @@ struct pp_flow* pp_flow_construct(struct pp_packet_context *pkt_ctx) {
 	flow->ep_a.port = pkt_ctx->src_port;
 	flow->ep_b.port = pkt_ctx->dst_port;
 
+	flow->first_seen = pkt_ctx->timestamp;
+	flow->last_seen = pkt_ctx->timestamp;
+
 	pthread_mutex_init(&flow->lock, NULL);
 
 	__pp_flow_update(flow, pkt_ctx);
