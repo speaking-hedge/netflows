@@ -73,6 +73,14 @@ struct pp_flow {
 
 	/* per flow lock */
 	pthread_mutex_t lock;
+
+	/* ndpi */
+	struct ndpi_flow_struct *ndpi_flow_ctx;
+	struct ndpi_id_struct *ndpi_src;
+	struct ndpi_id_struct *ndpi_dst;
+
+	uint32_t ndpi_protocol;
+	uint8_t ndpi_shortcut;
 };
 
 struct pp_flow_table {

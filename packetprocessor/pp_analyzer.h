@@ -1,8 +1,8 @@
 #ifndef __PP_analyzer
 #define __PP_analyzer
 
-#include <pp_flow.h>
 #include <pp_decap.h>
+#include <pp_flow.h>
 
 /**
  * each analyzer is invoked on each packet

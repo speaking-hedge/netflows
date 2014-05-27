@@ -241,7 +241,7 @@ void pp_flowtop_flow_print(struct pp_context *pp_ctx) {
 
 		/* l5..7 */
 		pp_get_proto_name(PP_OSI_LAYER_4, flow->protocols[PP_OSI_LAYER_4], name_buf, 31);
-		mvprintw(i, 27, "<unused>");
+		mvprintw(i, 27, "%s", pp_ndpi_get_protocol_name(pp_ctx, flow));
 
 		/* src / dst */
 		mvprintw(i, 49, "%s", ipsrc);

@@ -60,6 +60,13 @@ int main(int argc, char **argv) {
 		}
 	}
 
+	if (pp_ctx.processing_options & PP_PROC_OPT_USE_NDPI) {
+		if (pp_ndpi_init(&pp_ctx)) {
+			fprintf(stderr, "failed to init nDPI context. abort.\n");
+			return 1;
+		}
+	}
+
 	switch(pp_ctx.action) {
 		case PP_ACTION_CHECK:
 			rc = pp_check_file(&pp_ctx);
@@ -300,12 +307,43 @@ static void __pp_packet_handler(struct pp_context *pp_ctx,
 					/* TODO: error handling */
 					return;
 				}
+
+				/* attach ndpi if selected */
+				if((pp_ctx->processing_options & PP_PROC_OPT_USE_NDPI) &&
+					pp_ndpi_flow_attach(flow, &pkt_ctx)) {
+					/* TODO: error handling */
+					printf("failed to attach ndpi flow ctx\n");
+					return;
+				}
+
 			} /* __new_flow */
 
 			/* run selected analyzers */
 			for (a = 0; a < pp_ctx->analyzer_num; a++) {
 				pp_ctx->analyzers[a].collect(pp_ctx->analyzers[a].idx, &pkt_ctx, flow);
 			}
+
+			/* run ndpi */
+			if ( !flow->ndpi_shortcut && (pp_ctx->processing_options & PP_PROC_OPT_USE_NDPI) ) {
+				flow->ndpi_protocol = (const u_int32_t)ndpi_detection_process_packet(pp_ctx->ndpi_ctx,
+																					 flow->ndpi_flow_ctx,
+																					 pkt_ctx.packet + pkt_ctx.offsets[PP_OSI_LAYER_3],
+																					 pkt_ctx.protocols[PP_OSI_LAYER_3] == ETH_P_IP?pkt_ctx.l3_meta.ip.length:pkt_ctx.l3_meta.ipv6.length,
+																					 pkt_ctx.timestamp / 1000,
+																					 flow->ndpi_src,
+																					 flow->ndpi_dst);
+
+				/* avoid use of detection if protocol was detected or
+				 * we were not able to detect anything within the first
+				 * n packets
+				 */
+				if ( (flow->ndpi_protocol != NDPI_PROTOCOL_UNKNOWN) ||
+					 (flow->protocols[PP_OSI_LAYER_4] == IPPROTO_TCP && flow->data_cum.packets > 10) ||
+					 (flow->protocols[PP_OSI_LAYER_4] == IPPROTO_UDP && flow->data_cum.packets > 8) ) {
+					flow->ndpi_shortcut = 1;
+				}
+
+			} /* __run_ndpi */
 
 			pthread_mutex_unlock(&flow->lock);
 
@@ -436,13 +474,14 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_context *pp_ctx) {
 		{"analyze-timespan", required_argument, NULL, 't'},
 		{"analyze-num-packets", required_argument, NULL, 'n'},
 		{"flowtop", optional_argument, NULL, 'g'},
+		{"use-ndpi", 0, NULL, 'D'},
 		{NULL, 0, NULL, 0}
 	};
 	int opt = 0, i = 0;
 	char *endptr = NULL;
 
 	while(1) {
-		opt = getopt_long(argc, argv, "hva:l:c:o:jf:J:r::PFTpwit:n:g::", options, NULL);
+		opt = getopt_long(argc, argv, "hva:l:c:o:jf:J:r::PFTpwit:n:g::D", options, NULL);
 		if (opt == -1)
 			break;
 
@@ -568,6 +607,9 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_context *pp_ctx) {
 				} else {
 					pp_ctx->flowtop_interval = 5;
 				}
+				break;
+			case 'D':
+				pp_ctx->processing_options |= PP_PROC_OPT_USE_NDPI;
 				break;
 			default:
 				abort();
@@ -732,4 +774,6 @@ void pp_usage(void) {
 	printf("\n");
 	printf("-g --flowtop=<time>            show flowtop gui, set update interval to\n");
 	printf("                               <time> seconds (default: 5)\n");
+	printf("-D --use-ndpi                  use nDPI to classify protocols/applications\n");
+	printf("                               (this will eat your memory and cpu)\n");
 }

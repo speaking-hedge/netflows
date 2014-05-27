@@ -53,6 +53,8 @@ int pp_ctx_init(struct pp_context *pp_ctx, void (*packet_handler)(struct pp_cont
 	pthread_mutex_init(&pp_ctx->flow_list_lock, NULL);
 	pp_ctx->flow_list.head = pp_ctx->flow_list.tail = NULL;
 
+	pp_ctx->ndpi_ctx = NULL;
+
 	return 0;
 }
 
@@ -107,6 +109,10 @@ void pp_ctx_cleanup(struct pp_context *pp_ctx) {
 	pthread_mutex_destroy(&pp_ctx->pm_stats);
 	pthread_cond_destroy(&pp_ctx->pc_report);
 	pthread_mutex_destroy(&pp_ctx->pm_report);
+
+	if (pp_ctx->ndpi_ctx) {
+		pp_ndpi_destroy(pp_ctx);
+	}
 }
 
 /**

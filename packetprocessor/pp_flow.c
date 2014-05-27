@@ -161,6 +161,12 @@ struct pp_flow* pp_flow_construct(struct pp_packet_context *pkt_ctx) {
 	flow->first_seen = pkt_ctx->timestamp;
 	flow->last_seen = pkt_ctx->timestamp;
 
+	flow->ndpi_flow_ctx = NULL;
+	flow->ndpi_src = NULL;
+	flow->ndpi_dst = NULL;
+	flow->ndpi_protocol = 0;
+	flow->ndpi_shortcut = 0;
+
 	pthread_mutex_init(&flow->lock, NULL);
 
 	__pp_flow_update(flow, pkt_ctx);
@@ -233,6 +239,11 @@ struct pp_flow* pp_flow_table_get_flow(struct pp_flow_table *table,
 void pp_flow_destroy(struct pp_flow *flow_ctx) {
 
 	assert(flow_ctx->analyzer_data == NULL);
+
+	free(flow_ctx->ndpi_flow_ctx);
+	free(flow_ctx->ndpi_src);
+	free(flow_ctx->ndpi_dst);
+
 	free(flow_ctx);
 }
 

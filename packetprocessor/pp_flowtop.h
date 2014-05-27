@@ -6,6 +6,7 @@
 #include <pthread.h>
 #include <pp_context.h>
 #include <pp_fnct.h>
+#include <pp_ndpi.h>
 
 enum pp_flowtop_sort_criteria {
 	PP_FT_SORT_BY_NONE = 0,

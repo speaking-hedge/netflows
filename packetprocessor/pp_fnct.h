@@ -12,6 +12,7 @@
 #include <signal.h>
 
 #include <pp_context.h>
+#include <pp_ndpi.h>
 
 extern int ppoll(struct pollfd *fds, nfds_t nfds, const struct timespec *timeout_ts, const sigset_t *sigmask);
 
