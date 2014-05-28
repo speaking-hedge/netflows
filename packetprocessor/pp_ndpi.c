@@ -36,6 +36,7 @@ static void __pp_free(void *ptr) {
 int pp_ndpi_init(struct pp_context *pp_ctx) {
 
 	ndpi_protocol_bitmask_struct_t bm_all;
+	int i = 0;
 
 	pp_ctx->ndpi_ctx = ndpi_init_detection_module(PP_NDPI_TICKS_RESOLUTION,
 											 &__pp_malloc,
@@ -47,6 +48,15 @@ int pp_ndpi_init(struct pp_context *pp_ctx) {
 
 	size_flow_struct = ndpi_detection_get_sizeof_ndpi_flow_struct();
 	size_id_struct = ndpi_detection_get_sizeof_ndpi_id_struct();
+
+	if ((pp_ctx->ndpi_protocol_stats = calloc(pp_ctx->ndpi_ctx->ndpi_num_supported_protocols, sizeof(struct __pp_ndpi_protocol_stats)))) {
+		for (i = 0; i < pp_ctx->ndpi_ctx->ndpi_num_supported_protocols; i++) {
+			pp_ctx->ndpi_protocol_stats[i].proto_name = pp_ctx->ndpi_ctx->proto_defaults[i].protoName;
+		}
+	} else {
+		pp_ndpi_destroy(pp_ctx);
+		return 1;
+	}
 
 	return 0;
 }
@@ -61,6 +71,8 @@ void pp_ndpi_destroy(struct pp_context *pp_ctx) {
 
 	ndpi_exit_detection_module(pp_ctx->ndpi_ctx,
 							   &__pp_free);
+
+	free(pp_ctx->ndpi_protocol_stats);
 
 	pp_ctx->ndpi_ctx = NULL;
 }
@@ -147,4 +159,32 @@ int pp_ndpi_get_protocol_list(struct pp_context *pp_ctx, char *** protocol_list)
 	}
 
 	return ndpi_ctx->ndpi_num_supported_protocols;
+}
+
+/**
+ * @brief dump nDPI protocol stats
+ * @param pp_ctx packet processor context that holds the ndpi context
+ */
+void pp_ndpi_stats_dump(struct pp_context *pp_ctx) {
+
+	int i = 0;
+	struct __pp_ndpi_protocol_stats *proto_stats = NULL;
+	double p_per_b = 100.0 / pp_ctx->bytes_taken;
+
+	if (!pp_ctx->ndpi_ctx) {
+		return;
+	}
+
+	printf("%-20s %12s %12s    %10s\n", "protocol", "packets", "bytes", "traffic/%");
+	for (i = 0; i < pp_ctx->ndpi_ctx->ndpi_num_supported_protocols; i++) {
+
+		proto_stats = &pp_ctx->ndpi_protocol_stats[i];
+
+		if (proto_stats->bytes) {
+			printf("%-20s %12" PRIu64 " %12" PRIu64 "    %10.2f\n", proto_stats->proto_name,
+										  proto_stats->packets,
+										  proto_stats->bytes,
+										  p_per_b * proto_stats->bytes);
+		}
+	}
 }

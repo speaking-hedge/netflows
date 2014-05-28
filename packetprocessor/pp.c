@@ -156,6 +156,10 @@ static void* __pp_show_stats_thread(void *arg) {
 			__pp_ctx_dump(pp_ctx);
 		}
 
+		if (pp_ctx->processing_options & PP_PROC_OPT_DUMP_NDPI_STATS) {
+			pp_ndpi_stats_dump(pp_ctx);
+		}
+
 		pthread_mutex_unlock(&pp_ctx->pm_stats);
 	}
 
@@ -399,8 +403,17 @@ static void __pp_packet_handler(struct pp_context *pp_ctx,
 	pp_ctx->packets_seen++;
 	pp_ctx->bytes_seen += len;
 	pp_ctx->unique_flows += !!is_new;
-	pp_ctx->packets_taken += flow!=0;
-	pp_ctx->bytes_taken += flow!=0?len:0;
+
+	if (flow) {
+		pp_ctx->packets_taken ++;
+		pp_ctx->bytes_taken += len;
+
+		if (pp_ctx->ndpi_protocol_stats) {
+			pp_ctx->ndpi_protocol_stats[flow->ndpi_protocol].packets++;
+			pp_ctx->ndpi_protocol_stats[flow->ndpi_protocol].bytes += len;
+		}
+	}
+
 	pthread_mutex_unlock(&pp_ctx->stats_lock);
 }
 
@@ -500,13 +513,14 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_context *pp_ctx) {
 		{"flowtop", optional_argument, NULL, 'g'},
 		{"use-ndpi", 0, NULL, 'D'},
 		{"list-ndpi-protocols", 0, NULL, 'L'},
+		{"dump-ndpi-stats", 0, NULL, 'N'},
 		{NULL, 0, NULL, 0}
 	};
 	int opt = 0, i = 0;
 	char *endptr = NULL;
 
 	while(1) {
-		opt = getopt_long(argc, argv, "hva:l:c:o:jf:J:r::PFTpwit:n:g::DL", options, NULL);
+		opt = getopt_long(argc, argv, "hva:l:c:o:jf:J:r::PFTpwit:n:g::DLN", options, NULL);
 		if (opt == -1)
 			break;
 
@@ -640,6 +654,10 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_context *pp_ctx) {
 				pp_ctx->processing_options |= PP_PROC_OPT_LIST_NDPI_PROTOS;
 				/* shortcut - just list the protocols */
 				return 0;
+			case 'N':
+				pp_ctx->processing_options |= PP_PROC_OPT_USE_NDPI;
+				pp_ctx->processing_options |= PP_PROC_OPT_DUMP_NDPI_STATS;
+				break;
 			default:
 				abort();
 		}
@@ -806,4 +824,6 @@ void pp_usage(void) {
 	printf("-D --use-ndpi                  use nDPI to classify protocols/applications\n");
 	printf("                               (this will eat your memory and cpu)\n");
 	printf("-L --list-ndpi-protocols       output a list of supported protocols\n");
+	printf("-N --dump-ndpi-stats           dump protocol usage for nDPI protocols\n");
+	printf("                               (activates use of nDPI implicitly)\n");
 }

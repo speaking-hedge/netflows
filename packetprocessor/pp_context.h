@@ -35,6 +35,7 @@ struct pp_context {
 		PP_PROC_OPT_SHOW_FLOWTOP     = 1<<6,
 		PP_PROC_OPT_USE_NDPI         = 1<<7,
 		PP_PROC_OPT_LIST_NDPI_PROTOS = 1<<8,
+		PP_PROC_OPT_DUMP_NDPI_STATS  = 1<<9,
 		PP_PROC_OPT_EOL
 	} processing_options;
 
@@ -81,6 +82,11 @@ struct pp_context {
 	int flowtop_sort_order;
 
 	struct ndpi_detection_module_struct *ndpi_ctx;
+	struct __pp_ndpi_protocol_stats {
+		char *proto_name;
+		uint64_t packets;
+		uint64_t bytes;
+	} *ndpi_protocol_stats;
 };
 
 #endif /* __PP_CONTEXT */
