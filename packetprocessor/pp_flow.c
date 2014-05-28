@@ -200,7 +200,7 @@ struct pp_flow* pp_flow_table_get_flow(struct pp_flow_table *table,
 		return NULL;
 	}
 
-	bucket = table->hash_fnct(f_addr) % table->size;
+	bucket = (table->hash_fnct(f_addr) + pkt_ctx->protocols[PP_OSI_LAYER_4]) % table->size;
 
 	if (table->buckets[bucket]) {
 
