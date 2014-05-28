@@ -13,7 +13,7 @@
  * @retval 1 on error
  */
 int pp_analyzer_register(struct pp_analyzer **analyzer_list,
-						 void (*collect)(uint32_t idx, struct pp_packet_context *pkt_ctx, struct pp_flow *flow_ctx),
+						 enum PP_ANALYZER_ACTION (*inspect)(uint32_t idx, struct pp_packet_context *pkt_ctx, struct pp_flow *flow_ctx),
 						 void (*analyze)(uint32_t idx, struct pp_flow *flow_ctx),
 						 char* (*report)(uint32_t idx, struct pp_flow *flow_ctx),
 						 char* (*describe)(struct pp_flow *flow_ctx),
@@ -28,7 +28,7 @@ int pp_analyzer_register(struct pp_analyzer **analyzer_list,
 		return 1;
 	}
 
-	new_analyzer->collect = collect;
+	new_analyzer->inspect = inspect;
 	new_analyzer->analyze = analyze;
 	new_analyzer->report = report;
 	new_analyzer->describe = describe;

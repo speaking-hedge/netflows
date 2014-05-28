@@ -1,12 +1,14 @@
 #include <pp_window_size.h>
 
-void pp_window_size_collect(uint32_t idx, struct pp_packet_context *pkt_ctx, struct pp_flow *flow_ctx) {
+enum PP_ANALYZER_ACTION pp_window_size_collect(uint32_t idx, struct pp_packet_context *pkt_ctx, struct pp_flow *flow_ctx) {
 
 	struct __pp_window_size_data *data = pp_analyzer_storage_get_next_location(idx, pkt_ctx, flow_ctx);
 
 	if (likely(data)) {
 		data->size = pkt_ctx->l4_meta.tcp.window_size;
 	}
+
+	return PP_ANALYZER_ACTION_NONE;
 }
 
 /**

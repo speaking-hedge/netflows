@@ -191,23 +191,29 @@ static void* __pp_report_thread(void *arg) {
 					pthread_mutex_lock(&flow->lock);
 
 					for (a=0; a < pp_ctx->analyzer_num; a++) {
-						pp_ctx->analyzers[a].analyze(a, flow);
 
-						/* TODO: report to rest service if configured */
+						if (pp_ctx->analyzers[a].report) {
 
-						report_data = pp_ctx->analyzers[a].report(a, flow);
-						if (report_data) {
-
-							if (pp_ctx->job_id) {
-								printf("{job-id: \"%s\"}\n", pp_ctx->job_id);
+							if (pp_ctx->analyzers[a].analyze) {
+								pp_ctx->analyzers[a].analyze(a, flow);
 							}
 
-							printf("{flow-id: %d}\n", flow->id);
-							printf("{sample-id: %d}\n", sample_id);
+							/* TODO: report to rest service if configured */
 
-							printf("%s\n", report_data);
-							free(report_data);
-						}
+							report_data = pp_ctx->analyzers[a].report(a, flow);
+							if (report_data) {
+
+								if (pp_ctx->job_id) {
+									printf("{job-id: \"%s\"}\n", pp_ctx->job_id);
+								}
+
+								printf("{flow-id: %d}\n", flow->id);
+								printf("{sample-id: %d}\n", sample_id);
+
+								printf("%s\n", report_data);
+								free(report_data);
+							}
+						} /* __has_report_function */
 					} /* __loop_analyzers */
 
 					pthread_mutex_unlock(&flow->lock);
@@ -292,6 +298,7 @@ static void __pp_packet_handler(struct pp_context *pp_ctx,
 	uint32_t is_new = 0;
 	uint32_t a = 0;
 	int rc = 0;
+	enum PP_ANALYZER_ACTION req_action = 0;
 
 	if (pp_ctx->bp_filter && !bpf_filter(pp_ctx->bp_filter, data, len, len)) {
 
@@ -348,7 +355,8 @@ static void __pp_packet_handler(struct pp_context *pp_ctx,
 
 			/* run selected analyzers */
 			for (a = 0; a < pp_ctx->analyzer_num; a++) {
-				pp_ctx->analyzers[a].collect(pp_ctx->analyzers[a].idx, &pkt_ctx, flow);
+				/* TODO: use action */
+				req_action = pp_ctx->analyzers[a].inspect(pp_ctx->analyzers[a].idx, &pkt_ctx, flow);
 			}
 
 			/* run ndpi */
