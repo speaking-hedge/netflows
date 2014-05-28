@@ -34,6 +34,7 @@ struct pp_context {
 		PP_PROC_OPT_USE_REST         = 1<<5,
 		PP_PROC_OPT_SHOW_FLOWTOP     = 1<<6,
 		PP_PROC_OPT_USE_NDPI         = 1<<7,
+		PP_PROC_OPT_LIST_NDPI_PROTOS = 1<<8,
 		PP_PROC_OPT_EOL
 	} processing_options;
 

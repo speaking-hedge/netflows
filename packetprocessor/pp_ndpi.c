@@ -116,3 +116,35 @@ inline const char* pp_ndpi_get_protocol_name(struct pp_context *pp_ctx, struct p
 		return "<ndpi disabled>";
 	}
 }
+
+/**
+ * @brief return an array containing ptrs to the names of the supported protocols
+ * @note the caller must free the list but not strings stored inside
+ * @param pp_ctx packet processor context that holds the ndpi context
+ * @param protocol_list [OUT] where to store the list
+ * @retval >=0 number of protocols in the list
+ * @retval <0 on error
+ */
+int pp_ndpi_get_protocol_list(struct pp_context *pp_ctx, char *** protocol_list) {
+
+	struct ndpi_detection_module_struct *ndpi_ctx = NULL;
+	int i = 0;
+
+	assert(pp_ctx);
+
+	if (!pp_ctx->ndpi_ctx) {
+		return 0;
+	}
+
+	ndpi_ctx = pp_ctx->ndpi_ctx;
+
+	if (!(*protocol_list = malloc(ndpi_ctx->ndpi_num_supported_protocols * sizeof(char*)))) {
+		return -1;
+	}
+
+	for (i = 0; i < ndpi_ctx->ndpi_num_supported_protocols; i++) {
+		(*protocol_list)[i] = ndpi_ctx->proto_defaults[i].protoName;
+	}
+
+	return ndpi_ctx->ndpi_num_supported_protocols;
+}

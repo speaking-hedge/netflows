@@ -39,6 +39,37 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
+	if (pp_ctx.processing_options & PP_PROC_OPT_USE_NDPI ||
+		pp_ctx.processing_options & PP_PROC_OPT_LIST_NDPI_PROTOS) {
+		if (pp_ndpi_init(&pp_ctx)) {
+			fprintf(stderr, "failed to init nDPI context. abort.\n");
+			return 1;
+		}
+	}
+
+	if (pp_ctx.processing_options & PP_PROC_OPT_LIST_NDPI_PROTOS) {
+
+		char **list = NULL;
+		int c = 0, i = 0;
+
+		if (0 > (c = pp_ndpi_get_protocol_list(&pp_ctx, &list))) {
+			fprintf(stderr, "failed to get nDPI protocol list. abort.\n");
+			return 1;
+		}
+
+		if (c == 0) {
+			printf("nDPI protocol list is empty.\n");
+			return 0;
+		}
+
+		for (i = 0; i < c; i++) {
+			printf("%03d %s\n", i, list[i]);
+		}
+		free(list);
+
+		return 0;
+	}
+
 	if(pthread_create(&pp_ctx.pt_stats, NULL, &__pp_show_stats_thread, &pp_ctx)) {
 		fprintf(stderr, "failed to create show stats thread. abort.\n");
 		return 1;
@@ -56,13 +87,6 @@ int main(int argc, char **argv) {
 		}
 		if(pthread_create(&pp_ctx.pt_flowtop, NULL, &__pp_flowtop_thread, &pp_ctx)) {
 			fprintf(stderr, "failed to create flowtop thread. abort.\n");
-			return 1;
-		}
-	}
-
-	if (pp_ctx.processing_options & PP_PROC_OPT_USE_NDPI) {
-		if (pp_ndpi_init(&pp_ctx)) {
-			fprintf(stderr, "failed to init nDPI context. abort.\n");
 			return 1;
 		}
 	}
@@ -475,13 +499,14 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_context *pp_ctx) {
 		{"analyze-num-packets", required_argument, NULL, 'n'},
 		{"flowtop", optional_argument, NULL, 'g'},
 		{"use-ndpi", 0, NULL, 'D'},
+		{"list-ndpi-protocols", 0, NULL, 'L'},
 		{NULL, 0, NULL, 0}
 	};
 	int opt = 0, i = 0;
 	char *endptr = NULL;
 
 	while(1) {
-		opt = getopt_long(argc, argv, "hva:l:c:o:jf:J:r::PFTpwit:n:g::D", options, NULL);
+		opt = getopt_long(argc, argv, "hva:l:c:o:jf:J:r::PFTpwit:n:g::DL", options, NULL);
 		if (opt == -1)
 			break;
 
@@ -611,6 +636,10 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_context *pp_ctx) {
 			case 'D':
 				pp_ctx->processing_options |= PP_PROC_OPT_USE_NDPI;
 				break;
+			case 'L':
+				pp_ctx->processing_options |= PP_PROC_OPT_LIST_NDPI_PROTOS;
+				/* shortcut - just list the protocols */
+				return 0;
 			default:
 				abort();
 		}
@@ -776,4 +805,5 @@ void pp_usage(void) {
 	printf("                               <time> seconds (default: 5)\n");
 	printf("-D --use-ndpi                  use nDPI to classify protocols/applications\n");
 	printf("                               (this will eat your memory and cpu)\n");
+	printf("-L --list-ndpi-protocols       output a list of supported protocols\n");
 }

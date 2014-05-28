@@ -22,5 +22,6 @@ int pp_ndpi_init(struct pp_context *pp_ctx);
 void pp_ndpi_destroy(struct pp_context *pp_ctx);
 int pp_ndpi_flow_attach(struct pp_flow *flow_ctx, struct pp_packet_context *pck_ctx);
 const char* pp_ndpi_get_protocol_name(struct pp_context *pp_ctx, struct pp_flow *flow_ctx);
+int pp_ndpi_get_protocol_list(struct pp_context *pp_ctx, char *** protocol_list);
 
 #endif /* __PP_NDPI */
