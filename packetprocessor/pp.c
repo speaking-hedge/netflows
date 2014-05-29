@@ -386,8 +386,8 @@ static void __pp_packet_handler(struct pp_context *pp_ctx,
 				 * n packets
 				 */
 				if ( (flow->ndpi_protocol != NDPI_PROTOCOL_UNKNOWN) ||
-					 (flow->protocols[PP_OSI_LAYER_4] == IPPROTO_TCP && flow->data_cum.packets > 10) ||
-					 (flow->protocols[PP_OSI_LAYER_4] == IPPROTO_UDP && flow->data_cum.packets > 8) ) {
+					 (flow->protocols[PP_OSI_LAYER_4] == IPPROTO_TCP && flow->data_cum.packets > PP_TCP_NDPI_PACKET_LIMIT) ||
+					 (flow->protocols[PP_OSI_LAYER_4] == IPPROTO_UDP && flow->data_cum.packets > PP_UDP_NDPI_PACKET_LIMIT) ) {
 					flow->ndpi_shortcut = 1;
 				}
 

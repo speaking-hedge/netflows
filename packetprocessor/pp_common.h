@@ -17,6 +17,12 @@
 /* number of buckets inside the hash table */
 #define PP_FLOW_HASH_TABLE_BUCKETS	4099
 
+/* stop running nDPI for TCP packets after PP_TCP_NDPI_PACKET_LIMIT packets and protocol is still unknown */
+#define PP_TCP_NDPI_PACKET_LIMIT	10
+
+/* stop running nDPI for UDP packets after PP_UDP_NDPI_PACKET_LIMIT packets and protocol is still unknown */
+#define PP_UDP_NDPI_PACKET_LIMIT	8
+
 enum PP_DECAP_RESULT {
 	/* packet successfull decapsulated and analysed */
 	PP_DECAP_OKAY = 0,
