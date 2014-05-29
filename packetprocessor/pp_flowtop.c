@@ -1,7 +1,14 @@
 #include <pp_flowtop.h>
 
 #define PP_FLOWTOP_HEADER_ROW_COUNT		3
-static void *pp_flowtop_keyhandler(void *arg);
+static void *__pp_flowtop_keyhandler(void *arg);
+static void __pp_flowtop_redraw_all(struct pp_context *pp_ctx);
+static struct pp_flow_list_entry* __pp_flowtop_list_merge_sort_by_src_addr(struct pp_flow_list_entry *head);
+static struct pp_flow_list_entry* __pp_flowtop_list_merge_by_src_addr(struct pp_flow_list_entry *a,
+																	struct pp_flow_list_entry *b);
+static struct pp_flow_list_entry* __pp_flowtop_list_merge_sort_by_dst_addr(struct pp_flow_list_entry *head);
+static struct pp_flow_list_entry* __pp_flowtop_list_merge_by_dst_addr(struct pp_flow_list_entry *a,
+																	struct pp_flow_list_entry *b);
 
 static struct pp_flowtop_header __pp_ft_list_header[] = {
 	{"id",                   0, 0, 0, 'i', PP_FT_SORT_BY_ID },
@@ -21,8 +28,213 @@ static struct pp_flowtop_header __pp_ft_list_header[] = {
 	{NULL, 0, 0}
 };
 
+/**
+ * @brief return the center element of the list starting at given head
+ * @param head of the list
+ * @retval center node on success
+ * @retval NULL if given list was empty
+ */
+struct pp_flow_list_entry* pp_flowtop_list_get_center_node(struct pp_flow_list_entry *head) {
 
-static void *pp_flowtop_keyhandler(void *arg) {
+	struct pp_flow_list_entry *fast_entry, *slow_entry;
+
+	if (!head) {
+		return NULL;
+	}
+
+	fast_entry = slow_entry = head;
+
+	while (fast_entry->next && fast_entry->next->next) {
+		slow_entry = slow_entry->next;
+		fast_entry = fast_entry->next->next;
+	}
+	return slow_entry;
+}
+
+/* pp_flowtop_list_merge_by_NAME */
+PP_FLOWTOP_LIST_MERGE_BY(first_seen, first_seen)
+PP_FLOWTOP_LIST_MERGE_BY(data_downstream_bytes, data_downstream.bytes)
+PP_FLOWTOP_LIST_MERGE_BY(data_upstream_bytes, data_upstream.bytes)
+PP_FLOWTOP_LIST_MERGE_BY(ep_b_port, ep_b.port)
+PP_FLOWTOP_LIST_MERGE_BY(id, id)
+PP_FLOWTOP_LIST_MERGE_BY(protocols_l3, protocols[PP_OSI_LAYER_3])
+PP_FLOWTOP_LIST_MERGE_BY(protocols_l4, protocols[PP_OSI_LAYER_4])
+PP_FLOWTOP_LIST_MERGE_BY(ndpi_protocol, ndpi_protocol)
+PP_FLOWTOP_LIST_MERGE_BY(last_seen, last_seen)
+PP_FLOWTOP_LIST_MERGE_BY(data_downstream_packets, data_downstream.packets)
+PP_FLOWTOP_LIST_MERGE_BY(data_upstream_packets, data_upstream.packets)
+PP_FLOWTOP_LIST_MERGE_BY(ep_a_port, ep_a.port)
+
+/* pp_flowtop_list_merge_sort_by_NAME */
+PP_FLOWTOP_LIST_MERGE_SORT_BY(first_seen)
+PP_FLOWTOP_LIST_MERGE_SORT_BY(data_downstream_bytes)
+PP_FLOWTOP_LIST_MERGE_SORT_BY(data_upstream_bytes)
+PP_FLOWTOP_LIST_MERGE_SORT_BY(ep_b_port)
+PP_FLOWTOP_LIST_MERGE_SORT_BY(id)
+PP_FLOWTOP_LIST_MERGE_SORT_BY(protocols_l3)
+PP_FLOWTOP_LIST_MERGE_SORT_BY(protocols_l4)
+PP_FLOWTOP_LIST_MERGE_SORT_BY(ndpi_protocol)
+PP_FLOWTOP_LIST_MERGE_SORT_BY(last_seen)
+PP_FLOWTOP_LIST_MERGE_SORT_BY(data_downstream_packets)
+PP_FLOWTOP_LIST_MERGE_SORT_BY(data_upstream_packets)
+PP_FLOWTOP_LIST_MERGE_SORT_BY(ep_a_port)
+
+static struct pp_flow_list_entry* __pp_flowtop_list_merge_sort_by_src_addr(struct pp_flow_list_entry *head) {
+
+	if(!head || !head->next) {
+		return head;
+	}
+
+	struct pp_flow_list_entry* middle = pp_flowtop_list_get_center_node(head);
+	struct pp_flow_list_entry* right = middle->next;
+
+	middle->next = NULL;
+
+	return __pp_flowtop_list_merge_by_src_addr(__pp_flowtop_list_merge_sort_by_src_addr(head),
+											 __pp_flowtop_list_merge_sort_by_src_addr(right));
+}
+
+static struct pp_flow_list_entry* __pp_flowtop_list_merge_by_src_addr(struct pp_flow_list_entry *a,
+																	struct pp_flow_list_entry *b) {
+	struct pp_flow_list_entry tmp, *curr;
+	curr = &tmp;
+
+	while(a && b) {
+		if ( memcmp(&a->flow->ep_a.ip.addr.v6, &b->flow->ep_a.ip.addr.v6, sizeof(struct in6_addr)) <= 0) {
+			curr->next = a;
+			a = a->next;
+		} else {
+			curr->next = b;
+			b = b->next;
+		}
+		curr = curr->next;
+	}
+
+	curr->next = (!a) ? b : a;
+	return tmp.next;
+}
+
+static struct pp_flow_list_entry* __pp_flowtop_list_merge_sort_by_dst_addr(struct pp_flow_list_entry *head) {
+
+	if(!head || !head->next) {
+		return head;
+	}
+
+	struct pp_flow_list_entry* middle = pp_flowtop_list_get_center_node(head);
+	struct pp_flow_list_entry* right = middle->next;
+
+	middle->next = NULL;
+
+	return __pp_flowtop_list_merge_by_dst_addr(__pp_flowtop_list_merge_sort_by_dst_addr(head),
+											   __pp_flowtop_list_merge_sort_by_dst_addr(right));
+}
+
+static struct pp_flow_list_entry* __pp_flowtop_list_merge_by_dst_addr(struct pp_flow_list_entry *a,
+																	struct pp_flow_list_entry *b) {
+	struct pp_flow_list_entry tmp, *curr;
+	curr = &tmp;
+
+	while(a && b) {
+		if ( memcmp(&a->flow->ep_b.ip.addr.v6, &b->flow->ep_b.ip.addr.v6, sizeof(struct in6_addr)) <= 0) {
+			curr->next = a;
+			a = a->next;
+		} else {
+			curr->next = b;
+			b = b->next;
+		}
+		curr = curr->next;
+	}
+
+	curr->next = (!a) ? b : a;
+	return tmp.next;
+}
+
+/**
+ * @brief return a sorted list of flows
+ * @note the list must not be changed outside the function while in use
+ * @brief list to be sorted
+ * @brief size of the list
+ * @brief by criteria to sort on
+ * @brief order sort ascending or descanding
+ * @retval const * const ptr to a sorted list
+ * @retval NULL on error
+ */
+static void __pp_flowtop_sort_flow_list(struct pp_context *pp_ctx) {
+
+	struct pp_flow_list_entry *entry, *prev = NULL;
+
+	pthread_mutex_lock(&pp_ctx->flow_list_lock);
+
+	if (!pp_ctx->flow_list.head) {
+		pthread_mutex_unlock(&pp_ctx->flow_list_lock);
+		return;
+	}
+
+	switch(pp_ctx->flowtop_sort_by) {
+	case PP_FT_SORT_BY_AGE:
+		pp_ctx->flow_list.head = CALL_PP_FLOWTOP_LIST_MERGE_SORT_BY(first_seen, pp_ctx->flow_list.head);
+		break;
+	case PP_FT_SORT_BY_BYT_DOWN:
+		pp_ctx->flow_list.head = CALL_PP_FLOWTOP_LIST_MERGE_SORT_BY(data_downstream_bytes, pp_ctx->flow_list.head);
+		break;
+	case PP_FT_SORT_BY_BYT_UP:
+		pp_ctx->flow_list.head = CALL_PP_FLOWTOP_LIST_MERGE_SORT_BY(data_upstream_bytes, pp_ctx->flow_list.head);
+		break;
+	case PP_FT_SORT_BY_DST_PORT:
+		pp_ctx->flow_list.head = CALL_PP_FLOWTOP_LIST_MERGE_SORT_BY(ep_b_port, pp_ctx->flow_list.head);
+		break;
+	case PP_FT_SORT_BY_ID:
+		pp_ctx->flow_list.head = CALL_PP_FLOWTOP_LIST_MERGE_SORT_BY(id, pp_ctx->flow_list.head);
+		break;
+	case PP_FT_SORT_BY_L3:
+		pp_ctx->flow_list.head = CALL_PP_FLOWTOP_LIST_MERGE_SORT_BY(protocols_l3, pp_ctx->flow_list.head);
+		break;
+	case PP_FT_SORT_BY_L4:
+		pp_ctx->flow_list.head = CALL_PP_FLOWTOP_LIST_MERGE_SORT_BY(protocols_l4, pp_ctx->flow_list.head);
+		break;
+	case PP_FT_SORT_BY_L57:
+		pp_ctx->flow_list.head = CALL_PP_FLOWTOP_LIST_MERGE_SORT_BY(ndpi_protocol, pp_ctx->flow_list.head);
+		break;
+	case PP_FT_SORT_BY_LAST_SEEN:
+		pp_ctx->flow_list.head = CALL_PP_FLOWTOP_LIST_MERGE_SORT_BY(last_seen, pp_ctx->flow_list.head);
+		break;
+	case PP_FT_SORT_BY_PKT_DOWN:
+		pp_ctx->flow_list.head = CALL_PP_FLOWTOP_LIST_MERGE_SORT_BY(data_downstream_packets, pp_ctx->flow_list.head);
+		break;
+	case PP_FT_SORT_BY_PKT_UP:
+		pp_ctx->flow_list.head = CALL_PP_FLOWTOP_LIST_MERGE_SORT_BY(data_upstream_packets, pp_ctx->flow_list.head);
+		break;
+	case PP_FT_SORT_BY_SRC_PORT:
+		pp_ctx->flow_list.head = CALL_PP_FLOWTOP_LIST_MERGE_SORT_BY(ep_a_port, pp_ctx->flow_list.head);
+		break;
+	case PP_FT_SORT_BY_SRC_ADDR:
+		pp_ctx->flow_list.head = __pp_flowtop_list_merge_sort_by_src_addr(pp_ctx->flow_list.head);
+		break;
+	case PP_FT_SORT_BY_DST_ADDR:
+		pp_ctx->flow_list.head = __pp_flowtop_list_merge_sort_by_dst_addr(pp_ctx->flow_list.head);
+		break;
+	default:
+		break;
+	}
+
+	/* recreated prev-links and tail-entry */
+	entry = pp_ctx->flow_list.head;
+	do {
+		entry->prev = prev;
+		prev = entry;
+		entry = entry->next;
+	} while(entry);
+	pp_ctx->flow_list.tail = prev;
+
+	pthread_mutex_unlock(&pp_ctx->flow_list_lock);
+}
+
+/**
+ * @brief handle ncureses keypresses
+ * @param arg ptr to the pp context
+ * @retval NULL
+ */
+static void *__pp_flowtop_keyhandler(void *arg) {
 
 	struct pp_context *pp_ctx = NULL;
 	int c = 0, i = 0, sm = 0;
@@ -57,8 +269,7 @@ static void *pp_flowtop_keyhandler(void *arg) {
 			} else {
 				pp_ctx->flowtop_sort_order = PP_FT_SORT_ORDER_ASCENDING;
 			}
-			pp_flowtop_header_print(pp_ctx);
-			pp_flowtop_flow_print(pp_ctx);
+			__pp_flowtop_redraw_all(pp_ctx);
 			break;
 		default:
 			i = 0;
@@ -66,7 +277,7 @@ static void *pp_flowtop_keyhandler(void *arg) {
 				if (__pp_ft_list_header[i].key == c &&
 					pp_ctx->flowtop_sort_by != __pp_ft_list_header[i].sort_key) {
 					pp_ctx->flowtop_sort_by = __pp_ft_list_header[i].sort_key;
-					pp_flowtop_flow_print(pp_ctx);
+					__pp_flowtop_redraw_all(pp_ctx);
 					break;
 				}
 				i++;
@@ -76,6 +287,17 @@ static void *pp_flowtop_keyhandler(void *arg) {
 	}
 
 	return NULL;
+}
+
+/**
+ * @brief redraw screen
+ */
+static void __pp_flowtop_redraw_all(struct pp_context *pp_ctx) {
+
+	clear();
+	pp_flowtop_header_print(pp_ctx);
+	pp_flowtop_flow_print(pp_ctx);
+	refresh();
 }
 
 /**
@@ -90,7 +312,7 @@ int pp_flowtop_init(struct pp_context *pp_ctx) {
 	pp_ctx->flowtop_sort_by = PP_FT_SORT_BY_ID;
 	pp_ctx->flowtop_sort_order = PP_FT_SORT_ORDER_ASCENDING;
 
-	if(pthread_create(&pp_ctx->pt_flowtop_keyhandler, NULL, &pp_flowtop_keyhandler, pp_ctx)) {
+	if(pthread_create(&pp_ctx->pt_flowtop_keyhandler, NULL, &__pp_flowtop_keyhandler, pp_ctx)) {
 		return 1;
 	}
 
@@ -149,6 +371,8 @@ void pp_flowtop_header_print(struct pp_context *pp_ctx) {
 	mvprintw(2,60,  "running: %02d:%02d:%02d", b_now.tm_hour, b_now.tm_min, b_now.tm_sec);
 
 	pthread_mutex_unlock(&pp_ctx->stats_lock);
+
+	refresh();
 }
 
 /**
@@ -204,16 +428,14 @@ void pp_flowtop_flow_print(struct pp_context *pp_ctx) {
 
 	mvprintw(6,0,   "-------------------------------------------------------------------------------------------------------------------------------------------------------");
 
+	__pp_flowtop_sort_flow_list(pp_ctx);
+	flow_entry = pp_ctx->flowtop_sort_order == PP_FT_SORT_ORDER_ASCENDING ? pp_ctx->flow_list.head : pp_ctx->flow_list.tail;
+
 	getmaxyx(stdscr,row,col);
 	row -= PP_FLOWTOP_HEADER_ROW_COUNT - 4;
 	i = PP_FLOWTOP_HEADER_ROW_COUNT + 4;
 
-	pthread_mutex_lock(&pp_ctx->flow_list_lock);
-
-	flow_entry = pp_ctx->flow_list.head;
-
-	/* TODO: apply sort criteria */
-	/* TODO: apply scollable listbox */
+	/* TODO: apply scrollable listbox */
 	while(flow_entry && i < row) {
 
 		flow = flow_entry->flow;
@@ -260,23 +482,22 @@ void pp_flowtop_flow_print(struct pp_context *pp_ctx) {
 		mvprintw(i+1, 120, "%d", flow->data_downstream.bytes);
 
 		/* first seen */
-		mvprintw(i, 137, "%d", flow->first_seen);
+		mvprintw(i, 137, "%" PRIu64, flow->first_seen);
 
 		/* last seen */
-		mvprintw(i+1, 137, "%d", flow->last_seen);
+		mvprintw(i+1, 137, "%" PRIu64, flow->last_seen);
 
 		pthread_mutex_unlock(&flow->lock);
 
 		i += 2;
-		flow_entry = flow_entry->next;
+		flow_entry = pp_ctx->flowtop_sort_order == PP_FT_SORT_ORDER_ASCENDING ? flow_entry->next : flow_entry->prev;
 	}
-
-	pthread_mutex_unlock(&pp_ctx->flow_list_lock);
 }
 
 /**
  * @brief redraw the ncurses surface
  */
-void pp_flowtop_draw() {
-	refresh();
+void pp_flowtop_draw(struct pp_context *pp_ctx) {
+	__pp_flowtop_redraw_all(pp_ctx);
 }
+

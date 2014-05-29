@@ -50,6 +50,7 @@ struct pp_context {
 	pthread_mutex_t flow_list_lock;
 	/* holds references to the flows in a list */
 	struct pp_flow_list flow_list;
+	uint32_t flow_list_size;
 
 	pthread_mutex_t stats_lock;
 	uint32_t unique_flows;
@@ -78,8 +79,8 @@ struct pp_context {
 	pthread_t pt_flowtop;
 	pthread_t pt_flowtop_keyhandler;
 	uint32_t flowtop_interval;
-	int flowtop_sort_by;
-	int flowtop_sort_order;
+	enum pp_flowtop_sort_criteria flowtop_sort_by;
+	enum pp_flowtop_sort_order flowtop_sort_order;
 
 	struct ndpi_detection_module_struct *ndpi_ctx;
 	struct __pp_ndpi_protocol_stats {

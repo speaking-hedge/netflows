@@ -115,6 +115,8 @@ int main(int argc, char **argv) {
 		pp_flowtop_destroy();
 	}
 
+	run = 0;
+
 	/* dump selected stats on exit */
 	pthread_cond_signal(&pp_ctx.pc_stats);
 	//pthread_yield();
@@ -238,13 +240,11 @@ static void* __pp_flowtop_thread(void *arg) {
 
 	while(run) {
 
-		pp_flowtop_header_print(pp_ctx);
-
 		if (!(dt % pp_ctx->flowtop_interval)) {
-			pp_flowtop_flow_print(pp_ctx);
+			pp_flowtop_draw(pp_ctx);
+		} else {
+			pp_flowtop_header_print(pp_ctx);
 		}
-
-		pp_flowtop_draw();
 
 		dt++;
 		sleep(1);
@@ -253,32 +253,44 @@ static void* __pp_flowtop_thread(void *arg) {
 	return NULL;
 }
 
+/**
+ * @brief add flow to flow list
+ * @note linear list is used by flowtop to generate a sorted list
+ * @param pp_ctx the pp context
+ * @param flow_ctx the flow to add
+ * @retval 0 on success
+ * @retval 1 on error
+ */
 static int __pp_flow_list_add(struct pp_context *pp_ctx, struct pp_flow *flow_ctx) {
 
+	struct pp_flow_list_entry *new_entry = calloc(1, sizeof(struct pp_flow_list_entry));
+
+	if (unlikely(!new_entry)) {
+		return 1;
+	}
+
+	new_entry->flow = flow_ctx;
+
 	pthread_mutex_lock(&pp_ctx->flow_list_lock);
+	pp_ctx->flow_list_size++;
 
-	if (unlikely(!pp_ctx->flow_list.head)) {
+	if (unlikely(!pp_ctx->flow_list.head)) { /* the first entry */
 
-		if (!(pp_ctx->flow_list.head = pp_ctx->flow_list.tail = calloc(1, sizeof(struct pp_flow_list_entry)))) {
-			pthread_mutex_unlock(&pp_ctx->flow_list_lock);
-			return 1;
-		}
-		pp_ctx->flow_list.head->flow = flow_ctx;
+		pp_ctx->flow_list.head = pp_ctx->flow_list.tail = new_entry;
+
+		pthread_mutex_unlock(&pp_ctx->flow_list_lock);
+		return 0;
 
 	} else {
 
-		if (!(pp_ctx->flow_list.tail->next = calloc(1, sizeof(struct pp_flow_list_entry)))) {
-			pthread_mutex_unlock(&pp_ctx->flow_list_lock);
-				return 1;
-		}
-		pp_ctx->flow_list.tail->next->flow = flow_ctx;
-		pp_ctx->flow_list.tail->next->prev = pp_ctx->flow_list.tail;
-		pp_ctx->flow_list.tail = pp_ctx->flow_list.tail->next;
+		pp_ctx->flow_list.tail->next = new_entry;
+		new_entry->prev = pp_ctx->flow_list.tail;
+		pp_ctx->flow_list.tail = new_entry;
+
+		pthread_mutex_unlock(&pp_ctx->flow_list_lock);
+		return 0;
+
 	}
-
-	pthread_mutex_unlock(&pp_ctx->flow_list_lock);
-
-	return 0;
 }
 
 /**

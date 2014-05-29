@@ -1,0 +1,50 @@
+#include <pp_flowtop.h>
+#include <stdlib.h>
+#include <time.h>
+
+#suite flowtop
+
+#define TEST_ENTRIES_COUNT		100
+
+extern struct pp_flow_list_entry* pp_flowtop_list_get_center_node(struct pp_flow_list_entry *head);
+
+static PP_FLOWTOP_LIST_MERGE_BY(id, id)
+static PP_FLOWTOP_LIST_MERGE_SORT_BY(id)
+
+#test test_case_merge_sort
+
+	struct pp_flow_list_entry entries[TEST_ENTRIES_COUNT];
+	struct pp_flow_list_entry *entry = NULL, *head = NULL;
+	int i, val;
+
+	srandom(time(0));
+
+	for (i = 0; i < TEST_ENTRIES_COUNT; i++) {
+		entries[i].flow = malloc(sizeof(struct pp_flow));
+		entries[i].flow->id = random();
+		if (i < TEST_ENTRIES_COUNT - 1) {
+			entries[i].next = &entries[i + 1];
+		} else {
+			entries[i].next = NULL;
+		}
+	}
+
+	head = &entries[0];
+
+	head = CALL_PP_FLOWTOP_LIST_MERGE_SORT_BY(id, head);
+
+	val = 0;
+	i = 0;
+	do {
+		/* printf("id:%d\n", head->flow->id); */
+		ck_assert_msg(head->flow->id >= val, "invalid order");
+		val = head->flow->id;
+		head = head->next;
+		i++;
+	} while (head);
+
+	ck_assert_msg(i == TEST_ENTRIES_COUNT, "invalid number of entries, is %d, should be %d\n", i, TEST_ENTRIES_COUNT);
+
+	for (i = 0; i < TEST_ENTRIES_COUNT; i++) {
+		free(entries[i].flow);
+	}

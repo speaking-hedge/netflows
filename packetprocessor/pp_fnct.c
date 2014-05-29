@@ -52,6 +52,7 @@ int pp_ctx_init(struct pp_context *pp_ctx, void (*packet_handler)(struct pp_cont
 	pthread_mutex_init(&pp_ctx->flow_table_lock, NULL);
 	pthread_mutex_init(&pp_ctx->flow_list_lock, NULL);
 	pp_ctx->flow_list.head = pp_ctx->flow_list.tail = NULL;
+	pp_ctx->flow_list_size = 0;
 
 	pp_ctx->ndpi_ctx = NULL;
 
