@@ -13,6 +13,11 @@ enum RestJobState {
 	JOB_STATE_FILE_ERROR,
 	JOB_STATE_INTERNAL_ERROR
 };
+ 
+struct ReadMessage {
+  const char *readptr;
+  long sizeleft;
+};
 
 int pp_rest_job_state(const char* url, const char* job_hash, enum RestJobState state);
 int pp_rest_job_state_msg(const char* url, const char* job_hash, enum RestJobState state, char* error);

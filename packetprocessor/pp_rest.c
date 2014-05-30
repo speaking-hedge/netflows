@@ -1,6 +1,29 @@
 #include "pp_rest.h"
 
-static size_t answer_parser( char *ptr, size_t size, size_t nmemb, void *userdata) {
+static size_t __read_message( char *ptr, size_t size, size_t nmemb, void *userdata)
+{
+	struct ReadMessage *msg = (struct ReadMessage *)userdata;
+
+	if(size*nmemb < 1) return 0; // out of memory
+
+	if(msg->sizeleft) {
+		*(char *)ptr = msg->readptr[0];
+		msg->readptr++;
+		msg->sizeleft--;
+		return 1;
+	}
+
+	return 0;
+}
+
+/**
+ * @brief interpret REST answer
+ * @param *ptr pointer to the servers answer
+ * @param size size of the answer
+ * @param nmemb size again
+ * @param *userdata error flag
+ */
+static size_t __answer_parser( char *ptr, size_t size, size_t nmemb, void *userdata) {
 	// TODO: doc says ptr is not null terminated
 	//       program says it is
 	// TODO: code below is very ugly
@@ -37,7 +60,7 @@ static int __pp_rest_send(const char* url) {
 	/* set url */
 	curl_easy_setopt(rest, CURLOPT_URL, url);
 	
-	curl_easy_setopt(rest, CURLOPT_WRITEFUNCTION, answer_parser);
+	curl_easy_setopt(rest, CURLOPT_WRITEFUNCTION, __answer_parser);
 	curl_easy_setopt(rest, CURLOPT_WRITEDATA, &error);
 
 	/* send it */
@@ -52,6 +75,51 @@ static int __pp_rest_send(const char* url) {
 		return 1;
 	}
 	if (error) {
+		return 1;
+	}
+
+	curl_global_cleanup();
+	return 0;
+}
+
+/**
+ * @brief post data to server
+ * @param url url to connect to
+ * @param msg message to send
+ * @retval 0 on success
+ * @retval 1 on error
+ */
+static int __rest_post(const char* url, const char *data)
+{
+	CURL *rest = curl_easy_init();
+
+	/* failed to init curl? */
+	if (!rest) return 1;
+
+	struct ReadMessage msg;
+	msg.readptr = data;
+	msg.sizeleft = (long)strlen(data);
+
+	/* set url */
+	curl_easy_setopt(rest, CURLOPT_URL, url);
+
+	/* POST */ 
+	curl_easy_setopt(rest, CURLOPT_POST, 1L);
+
+    /* read data */ 
+	curl_easy_setopt(rest, CURLOPT_READFUNCTION, __read_message);
+	curl_easy_setopt(rest, CURLOPT_READDATA, &msg);
+	curl_easy_setopt(rest, CURLOPT_POSTFIELDSIZE, msg.sizeleft);
+	
+	/* send it */
+	CURLcode result = curl_easy_perform(rest);
+
+	/* tidy up */
+	curl_easy_cleanup(rest);
+	
+	/* check for errors */
+	if(result != CURLE_OK) {
+		fprintf(stderr, "REST connection failed: %s\n", curl_easy_strerror(result));
 		return 1;
 	}
 
