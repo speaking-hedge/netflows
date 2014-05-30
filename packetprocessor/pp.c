@@ -9,6 +9,7 @@ static int __pp_run_live(struct pp_context *pp_ctx);
 static void __pp_packet_handler(struct pp_context *pp_ctx, uint8_t *data, uint16_t len, uint64_t ts);
 static void __pp_ctx_dump(struct pp_context *pp_ctx);
 static int __rest_set_job_state(struct pp_context *pp_ctx, enum RestJobState state);
+static int __abort(struct pp_context *pp_ctx, char* msg);
 
 static void* __pp_show_stats_thread(void *arg);
 static void* __pp_report_thread(void *arg);
@@ -107,8 +108,7 @@ int main(int argc, char **argv) {
 			rc = __pp_run_live(&pp_ctx);
 			break;
 		default:
-			fprintf(stderr, "unknown action specified. abort.\n");
-			rc = 1;
+			rc = __abort(&pp_ctx, "unknown action specified. abort.\n");
 	}
 
 	if (pp_ctx.processing_options & PP_PROC_OPT_SHOW_FLOWTOP) {
@@ -482,20 +482,23 @@ static int __pp_run_live(struct pp_context *pp_ctx) {
 
 	switch(pp_live_init(pp_ctx)) {
 		case EPERM:
-			fprintf(stderr, "invalid permissions - failed to init live capture. abort.\n");
-			return 1;
+			return __abort(pp_ctx, "invalid permissions - failed to init live capture. abort.\n");
 		case EINVAL:
-			fprintf(stderr, "invalid configuration - failed to init live capture. abort.\n");
-			return 1;
+			return __abort(pp_ctx, "invalid configuration - failed to init live capture. abort.\n");
 		case EBADF:
-			fprintf(stderr, "error during network setup - failed to init live capture. abort.\n");
-			return 1;
+			return __abort(pp_ctx, "error during network setup - failed to init live capture. abort.\n");
 		case ENODEV:
+			// TODO: send REST error message
 			fprintf(stderr, "failed to access interface %s - failed to init live capture. abort.\n", pp_ctx->packet_source);
 			return 1;
 	}
 
+	if (__rest_set_job_state(pp_ctx, JOB_STATE_RUNNING)) return 1;
+	
 	rc = pp_live_capture(pp_ctx, &run);
+	
+	__rest_set_job_state(pp_ctx, JOB_STATE_FINISHED);
+
 	pp_live_shutdown(pp_ctx);
 
 	return rc;
@@ -846,4 +849,22 @@ void pp_usage(void) {
 	printf("-L --list-ndpi-protocols       output a list of supported protocols\n");
 	printf("-N --dump-ndpi-stats           dump protocol usage for nDPI protocols\n");
 	printf("                               (activates use of nDPI implicitly)\n");
+}
+
+/**
+ * @brief: print error, send error to REST and abort programm
+ */
+static int __abort(struct pp_context *pp_ctx, char* msg) {
+	fprintf(stderr, msg);
+	if (pp_ctx->processing_options & PP_PROC_OPT_USE_REST) { // TODO: Check only once
+		if (pp_ctx->job_id == NULL) {
+			fprintf(stderr,"REST requires job-id.\n");
+			return 1;
+		}
+		if (pp_rest_job_state_msg(pp_ctx->rest_backend_url, pp_ctx->job_id, JOB_STATE_INTERNAL_ERROR, msg)) {
+			fprintf(stderr, "REST communication error.\n");
+			return 1;
+		}
+	}
+	return 1;
 }
