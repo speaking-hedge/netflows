@@ -5,7 +5,8 @@ volatile sig_atomic_t run;
 
 static void __pp_set_action(struct pp_context *pp_ctx, enum pp_action action, char *packet_source);
 static int __pp_run_pcap_file(struct pp_context *pp_ctx);
-static int __pp_run_live(struct pp_context *pp_ctx);
+static int __pp_run_live_socket(struct pp_context *pp_ctx);
+static int __pp_run_live_netfilter(struct pp_context *pp_ctx);
 static void __pp_packet_handler(struct pp_context *pp_ctx, uint8_t *data, uint16_t len, uint64_t ts);
 static void __pp_ctx_dump(struct pp_context *pp_ctx);
 static int __rest_set_job_state(struct pp_context *pp_ctx, enum RestJobState state);
@@ -104,8 +105,11 @@ int main(int argc, char **argv) {
 			}
 			pp_pcap_close(&pp_ctx);
 			break;
-		case PP_ACTION_ANALYZE_LIVE:
-			rc = __pp_run_live(&pp_ctx);
+		case PP_ACTION_ANALYZE_LIVE_PF_SOCKET:
+			rc = __pp_run_live_socket(&pp_ctx);
+			break;
+		case PP_ACTION_ANALYZE_LIVE_NETFILTER:
+			rc = __pp_run_live_netfilter(&pp_ctx);
 			break;
 		default:
 			rc = __abort(&pp_ctx, "unknown action specified. abort.\n");
@@ -476,11 +480,11 @@ static int __pp_run_pcap_file(struct pp_context *pp_ctx) {
 	return 0;
 }
 
-static int __pp_run_live(struct pp_context *pp_ctx) {
+static int __pp_run_live_socket(struct pp_context *pp_ctx) {
 
 	int rc = 0;
 
-	switch(pp_live_init(pp_ctx)) {
+	switch(pp_live_socket_init(pp_ctx)) {
 		case EPERM:
 			return __abort(pp_ctx, "invalid permissions - failed to init live capture. abort.\n");
 		case EINVAL:
@@ -495,11 +499,36 @@ static int __pp_run_live(struct pp_context *pp_ctx) {
 
 	if (__rest_set_job_state(pp_ctx, JOB_STATE_RUNNING)) return 1;
 
-	rc = pp_live_capture(pp_ctx, &run);
+	rc = pp_live_socket_capture(pp_ctx, &run);
 
 	__rest_set_job_state(pp_ctx, JOB_STATE_FINISHED);
 
-	pp_live_shutdown(pp_ctx);
+	pp_live_socket_shutdown(pp_ctx);
+
+	return rc;
+}
+
+static int __pp_run_live_netfilter(struct pp_context *pp_ctx) {
+
+	int rc = 0;
+
+	switch(pp_live_netfilter_init(pp_ctx)) {
+		case EPERM:
+			fprintf(stderr, "invalid permissions - failed to init live capture. abort.\n");
+			return 1;
+		case EINVAL:
+			fprintf(stderr, "invalid configuration - failed to init live capture. abort.\n");
+			return 1;
+		case EBADF:
+			fprintf(stderr, "error during network setup - failed to init live capture. abort.\n");
+			return 1;
+		case ENODEV:
+			fprintf(stderr, "failed to access interface %s - failed to init live capture. abort.\n", pp_ctx->packet_source);
+			return 1;
+	}
+
+	rc = pp_live_netfilter_capture(pp_ctx, &run);
+	pp_live_netfilter_shutdown(pp_ctx);
 
 	return rc;
 }
@@ -518,7 +547,7 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_context *pp_ctx) {
 		{"help", 0, NULL, 'h'},
 		{"version", 0, NULL, 'v'},
 		{"analyze", required_argument, NULL, 'a'},
-		{"live-analyze", required_argument, NULL, 'l'},
+		{"live-analyze-socket", required_argument, NULL, 'l'},
 		{"check", required_argument, NULL, 'c'},
 		{"output", required_argument, NULL, 'o'},
 		{"gen-job-id", 0, NULL, 'j'},
@@ -537,13 +566,14 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_context *pp_ctx) {
 		{"use-ndpi", 0, NULL, 'D'},
 		{"list-ndpi-protocols", 0, NULL, 'L'},
 		{"dump-ndpi-stats", 0, NULL, 'N'},
+		{"live-analyze-nf", required_argument, NULL, 'z'},
 		{NULL, 0, NULL, 0}
 	};
 	int opt = 0, i = 0;
 	char *endptr = NULL;
 
 	while(1) {
-		opt = getopt_long(argc, argv, "hva:l:c:o:jf:J:r::PFTpwit:n:g::DLN", options, NULL);
+		opt = getopt_long(argc, argv, "hva:l:c:o:jf:J:r::PFTpwit:n:g::DLNz:", options, NULL);
 		if (opt == -1)
 			break;
 
@@ -561,7 +591,11 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_context *pp_ctx) {
 				__pp_set_action(pp_ctx, PP_ACTION_ANALYZE_FILE, optarg);
 				break;
 			case 'l':
-				__pp_set_action(pp_ctx, PP_ACTION_ANALYZE_LIVE, optarg);
+				__pp_set_action(pp_ctx, PP_ACTION_ANALYZE_LIVE_PF_SOCKET, optarg);
+				break;
+			case 'z':
+				__pp_set_action(pp_ctx, PP_ACTION_ANALYZE_LIVE_NETFILTER, optarg);
+				pp_ctx->processing_options |= PP_PROC_OPT_CAN_DROP_PACKETS;
 				break;
 			case 'c':
 				__pp_set_action(pp_ctx, PP_ACTION_CHECK, optarg);
@@ -816,8 +850,13 @@ void pp_usage(void) {
 	printf("-J --job-id <id>               use given id <id> to identify\n");
 	printf("                               generated reports\n");
 	printf("-a --analyze <file>            analyze given pcap(ng) file\n");
-	printf("-l --live-analyze <if>         capture and analyze traffic from \n");
+	printf("-l --live-analyze-socket <if>  capture and analyze traffic from \n");
 	printf("                               given interface (may need root)\n");
+	printf("-z --live-analyze-nf <if>      capture and analyze traffic from\n");
+	printf("                               given interface (may need root),\n");
+	printf("                               packets can be blocked by analyzers\n");
+	printf("                               to handle all interfaces use 'all' as\n");
+	printf("                               as the interface name\n");
 	printf("-f --bp-filter <bpf>           set Berkeley Packet Filter by given\n");
 	printf("                               string (you may quote the string)\n");
 	printf("\n");
@@ -849,22 +888,4 @@ void pp_usage(void) {
 	printf("-L --list-ndpi-protocols       output a list of supported protocols\n");
 	printf("-N --dump-ndpi-stats           dump protocol usage for nDPI protocols\n");
 	printf("                               (activates use of nDPI implicitly)\n");
-}
-
-/**
- * @brief: print error, send error to REST and abort programm
- */
-static int __abort(struct pp_context *pp_ctx, char* msg) {
-	fprintf(stderr, "%s", msg);
-	if (pp_ctx->processing_options & PP_PROC_OPT_USE_REST) { // TODO: Check only once
-		if (pp_ctx->job_id == NULL) {
-			fprintf(stderr,"REST requires job-id.\n");
-			return 1;
-		}
-		if (pp_rest_job_state_msg(pp_ctx->rest_backend_url, pp_ctx->job_id, JOB_STATE_INTERNAL_ERROR, msg)) {
-			fprintf(stderr, "REST communication error.\n");
-			return 1;
-		}
-	}
-	return 1;
 }

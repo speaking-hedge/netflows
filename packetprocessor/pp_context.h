@@ -8,9 +8,10 @@
 struct pp_context {
 
 	enum pp_action {
-		PP_ACTION_UNDEFINED,
+		PP_ACTION_UNDEFINED = 0,
 		PP_ACTION_ANALYZE_FILE,
-		PP_ACTION_ANALYZE_LIVE,
+		PP_ACTION_ANALYZE_LIVE_PF_SOCKET,
+		PP_ACTION_ANALYZE_LIVE_NETFILTER,
 		PP_ACTION_CHECK
 	} action;
 
@@ -36,6 +37,7 @@ struct pp_context {
 		PP_PROC_OPT_USE_NDPI         = 1<<7,
 		PP_PROC_OPT_LIST_NDPI_PROTOS = 1<<8,
 		PP_PROC_OPT_DUMP_NDPI_STATS  = 1<<9,
+		PP_PROC_OPT_CAN_DROP_PACKETS = 1<<10,
 		PP_PROC_OPT_EOL
 	} processing_options;
 

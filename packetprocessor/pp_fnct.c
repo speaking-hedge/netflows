@@ -85,7 +85,7 @@ void pp_ctx_cleanup(struct pp_context *pp_ctx) {
 	free(pp_ctx->job_id);
 	pp_ctx->job_id = NULL;
 
-	pp_live_shutdown(pp_ctx);
+	pp_live_socket_shutdown(pp_ctx);
 
 	for (b = 0; b < pp_ctx->flow_table->size; b++) {
 		if (pp_ctx->flow_table->buckets[b] != NULL) {
@@ -181,7 +181,7 @@ static int __pp_live_check_perm(void);
  * @brief init traffic sniffing via netfilter hook
  * @retval 0 on success
  */
-int pp_live_init(struct pp_context *pp_ctx) {
+int pp_live_socket_init(struct pp_context *pp_ctx) {
 
 	struct sockaddr_ll ll_addr;
 
@@ -227,7 +227,7 @@ int pp_live_init(struct pp_context *pp_ctx) {
  * @retval 0 if capture runs/finish without errors
  * @retval 1 on error during capture
  */
-int pp_live_capture(struct pp_context *pp_ctx, volatile int *run) {
+int pp_live_socket_capture(struct pp_context *pp_ctx, volatile int *run) {
 
 	uint8_t buf[9000];
 	int inb;
@@ -269,7 +269,7 @@ int pp_live_capture(struct pp_context *pp_ctx, volatile int *run) {
  * @retval 0 if there was a socket that could be closed
  * @retval 1 on error / no open socket found
  */
-int pp_live_shutdown(struct pp_context *pp_ctx) {
+int pp_live_socket_shutdown(struct pp_context *pp_ctx) {
 
 	if (pp_ctx->packet_socket) {
 		close(pp_ctx->packet_socket);
@@ -478,4 +478,48 @@ inline void pp_detach_analyzers_from_flow(struct pp_context *pp_ctx, struct pp_f
 
 	pthread_mutex_unlock(&flow_ctx->lock);
 
+}
+
+
+/**
+ * @brief init traffic sniffing via netfilter hook
+ * @retval 0 on success
+ */
+int pp_live_netfilter_init(struct pp_context *pp_ctx) {
+
+	if (setuid(0)) {
+		return EPERM;
+	}
+
+	/* setup netfilter queue hook
+	*
+	*  add queue hock:
+	*  sudo iptables -A INPUT -i eth0 -p tcp -j NFQUEUE --queue-num 0
+	* remove:
+	*  sudo iptables -D INPUT -i eth0 -p tcp -j NFQUEUE --queue-num 0
+	* */
+	printf("%s\n", pp_ctx->packet_source);
+	exit(1);
+
+}
+
+/**
+ * @brief run live capture on given device invoking packet handler of given pp_ctx
+ * @param pp_ctx holds the config of pp
+ * @param run flag, set to 0 to stop capture
+ * @param dump flag, set to 1 to trigger a dump of the current state
+ * @retval 0 if capture runs/finish without errors
+ * @retval 1 on error during capture
+ */
+int pp_live_netfilter_capture(struct pp_context *pp_ctx, volatile int *run) {
+
+}
+
+/**
+ * @brief shutdown live capture socket
+ * @param pp_ctx holds the config of pp
+ * @retval 0 if there was a socket that could be closed
+ * @retval 1 on error / no open socket found
+ */
+int pp_live_netfilter_shutdown(struct pp_context *pp_ctx) {
 }

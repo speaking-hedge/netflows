@@ -25,10 +25,13 @@ void pp_dump_state(struct pp_context *pp_ctx);
 int pp_pcap_open(struct pp_context *pp_ctx);
 int pp_pcap_close(struct pp_context *pp_ctx);
 
-int pp_live_init(struct pp_context *pp_ctx);
-int pp_live_start(struct pp_context *pp_ctx);
-int pp_live_capture(struct pp_context *pp_ctx, volatile int *run);
-int pp_live_shutdown(struct pp_context *pp_ctx);
+int pp_live_socket_init(struct pp_context *pp_ctx);
+int pp_live_socket_capture(struct pp_context *pp_ctx, volatile int *run);
+int pp_live_socket_shutdown(struct pp_context *pp_ctx);
+
+int pp_live_netfilter_init(struct pp_context *pp_ctx);
+int pp_live_netfilter_capture(struct pp_context *pp_ctx, volatile int *run);
+int pp_live_netfilter_shutdown(struct pp_context *pp_ctx);
 
 int pp_get_proto_name(uint layer, uint32_t protocol, char* buf, size_t buf_len);
 
