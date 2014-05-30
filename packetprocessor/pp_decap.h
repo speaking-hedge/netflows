@@ -84,7 +84,7 @@ struct pp_packet_context {
 	in_port_t       dst_port;
 
 	/* determined by flow */
-	enum {
+	enum __pp_packet_direction {
 		PP_PKT_DIR_UNKNOWN = 0,
 		PP_PKT_DIR_UPSTREAM,
 		PP_PKT_DIR_DOWNSTREAM,
@@ -102,5 +102,8 @@ struct pp_packet_context {
 
 enum PP_DECAP_RESULT pp_decap(uint8_t *data, size_t len, uint64_t ts, struct pp_packet_context *pkt_ctx, struct bpf_insn *filter);
 void pp_dump_packet(struct pp_packet_context *pkt_ctx);
+
+const char* pp_packet_direction2str(enum __pp_packet_direction dir);
+const char* pp_packet_direction2strlong(enum __pp_packet_direction dir);
 
 #endif

@@ -293,3 +293,22 @@ void pp_dump_packet(struct pp_packet_context* pkt_ctx) {
 	printf("\tsize: %u B", pkt_ctx->length);
 	printf("\ttime: %" PRIu64 "\n", pkt_ctx->timestamp);
 }
+
+static struct __pp_direction_string {
+	char *str_short;
+	char *str_long;
+} pp_direction_strings[] = {
+	[PP_PKT_DIR_UPSTREAM] = {"up", "upstream"},
+	[PP_PKT_DIR_UNKNOWN] = {"??", "unknown"},
+	[PP_PKT_DIR_DOWNSTREAM] = {"down", "downstream"},
+	[PP_PKT_DIR_EOL] = {"err", "error"}
+};
+
+const char* pp_packet_direction2str(enum __pp_packet_direction dir) {
+
+	return pp_direction_strings[dir].str_short;
+}
+
+const char* pp_packet_direction2strlong(enum __pp_packet_direction dir) {
+	return pp_direction_strings[dir].str_long;
+}

@@ -243,6 +243,9 @@ int pp_analyzer_callback_for_each_entry(uint32_t idx, struct pp_flow *flow_ctx, 
 			for (i = 0; i < generic_store->write_pos; i++) {
 				naked = generic_store->entries;
 				naked += (i * generic_store->slot_size);
+				/* TODO: remove
+				 * printf("%s\n", pp_packet_direction2strlong(((struct pp_analyzer_store_void_data*)naked)->direction));
+				 */
 				fnct(naked,
 					 ((struct pp_analyzer_store_void_data*)naked)->timestamp,
 					 ((struct pp_analyzer_store_void_data*)naked)->direction);

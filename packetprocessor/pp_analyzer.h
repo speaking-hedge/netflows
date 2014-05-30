@@ -113,7 +113,7 @@ struct ANALYZER_NAME { \
 	uint32_t used_slots; \
 	struct ANALYZER_NAME ## _data { \
 		uint64_t timestamp; \
-		uint8_t direction; \
+		enum __pp_packet_direction direction; \
 		struct ANALYZER_NAME ## _data *next; \
 		/* keep analyzer related parts below this line */ \
 		DATATYPE data; \

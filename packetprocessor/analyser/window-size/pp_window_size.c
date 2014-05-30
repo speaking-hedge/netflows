@@ -23,6 +23,9 @@ static void __pp_window_size_analyze(void *data, uint64_t ts, int direction) {
 	static uint16_t last_ws_up = 0;
 	static uint16_t last_ws_down = 0;
 
+	/* TODO: remove
+	 * printf("%s\n", pp_packet_direction2strlong(direction));
+	 */
 	pp_window_size_report_data.data = realloc(pp_window_size_report_data.data,
 										 (pp_window_size_report_data.size + 1) * sizeof(struct __pp_window_size_report_data));
 	if (!pp_window_size_report_data.data) {
