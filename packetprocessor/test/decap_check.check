@@ -1,0 +1,41 @@
+#include <pp.h>
+#include <pp_decap.h>
+
+#suite dcap_handling
+
+#test general
+
+	struct pp_context pp_ctx;
+
+	void pp_packet_handler(struct pp_context *pp_ctx,
+							uint8_t *data,
+							uint16_t len,
+							uint64_t ts) {
+
+		struct pp_packet_context pkt_ctx;
+		int rc = 0;
+		rc = pp_decap(data, len, ts, &pkt_ctx, pp_ctx->bp_filter);
+		ck_assert_msg( PP_DECAP_OKAY == rc, "decap failed" );
+		// TODO: check packet context
+		return;
+	}
+	
+	/*
+		/*switch(rc) {
+		case PP_DECAP_OKAY:
+		case -PP_DECAP_L2_PROTO_UNKNOWN:
+		case -PP_DECAP_L3_PROTO_UNKNOWN:
+		case -PP_DECAP_L4_PROTO_UNKNOWN:
+		case -PP_DECAP_L2_ERROR:
+		case -PP_DECAP_L3_ERROR:
+		case -PP_DECAP_L4_ERROR:
+		default:
+	}*/
+
+	ck_assert_msg( 0 == pp_ctx_init(&pp_ctx, &pp_packet_handler), "packet processor failed\n");
+
+	pp_ctx.packet_source = "testcaps/testfile.pcap";
+	pp_ctx.action = PP_ACTION_ANALYZE_FILE;
+
+	int rc = pp_check_file(&pp_ctx);
+	ck_assert_msg( 0 == rc, "packet check failed\n");

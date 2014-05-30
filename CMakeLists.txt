@@ -48,3 +48,4 @@ macro (build_check_tests)
 endmacro ()
 
 add_subdirectory(packetprocessor)
+add_subdirectory(pcaps/tests)

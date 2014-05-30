@@ -25,7 +25,7 @@ INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/contrib/${NDPI_SRC}/src/include)
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/)
 SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DPPSHA=\\\"${GIT_SHA}\\\" -DPPCOMMITS=${REPO_COMMIT_COUNT}")
 ADD_EXECUTABLE (packet-processor-static pp.c libc_wrapper.c pp_fnct.c pp_decap.c pp_flow.c pp_rest.c pp_analyzer.c pp_flowtop.c pp_ndpi.c)
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--wrap=memcpy -static-libgcc")
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--wrap=memcpy -static-libgcc -lpcap")
 
 # link in available analysers
 file(GLOB sub-dir ${CMAKE_CURRENT_SOURCE_DIR}/analyser/*)
