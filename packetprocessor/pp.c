@@ -494,9 +494,9 @@ static int __pp_run_live(struct pp_context *pp_ctx) {
 	}
 
 	if (__rest_set_job_state(pp_ctx, JOB_STATE_RUNNING)) return 1;
-	
+
 	rc = pp_live_capture(pp_ctx, &run);
-	
+
 	__rest_set_job_state(pp_ctx, JOB_STATE_FINISHED);
 
 	pp_live_shutdown(pp_ctx);
@@ -855,7 +855,7 @@ void pp_usage(void) {
  * @brief: print error, send error to REST and abort programm
  */
 static int __abort(struct pp_context *pp_ctx, char* msg) {
-	fprintf(stderr, msg);
+	fprintf(stderr, "%s", msg);
 	if (pp_ctx->processing_options & PP_PROC_OPT_USE_REST) { // TODO: Check only once
 		if (pp_ctx->job_id == NULL) {
 			fprintf(stderr,"REST requires job-id.\n");

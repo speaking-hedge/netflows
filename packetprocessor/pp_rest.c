@@ -24,6 +24,7 @@ static size_t __read_message( char *ptr, size_t size, size_t nmemb, void *userda
  * @param *userdata error flag
  */
 static size_t __answer_parser( char *ptr, size_t size, size_t nmemb, void *userdata) {
+
 	// TODO: doc says ptr is not null terminated
 	//       program says it is
 	// TODO: code below is very ugly
@@ -35,7 +36,7 @@ static size_t __answer_parser( char *ptr, size_t size, size_t nmemb, void *userd
 		{
 			msg += 10;
 			fprintf(stderr, "REST error: ");
-			fprintf(stderr, msg);
+			fprintf(stderr, "%s", msg);
 			fprintf(stderr, "\n");
 		} else {
 			fprintf(stderr, "unknown REST error.\n");
@@ -53,13 +54,13 @@ static size_t __answer_parser( char *ptr, size_t size, size_t nmemb, void *userd
 static int __pp_rest_send(const char* url) {
 	CURL *rest = curl_easy_init();
 	char error = 0;
-	
+
 	/* failed to init curl? */
 	if (!rest) return 1;
 
 	/* set url */
 	curl_easy_setopt(rest, CURLOPT_URL, url);
-	
+
 	curl_easy_setopt(rest, CURLOPT_WRITEFUNCTION, __answer_parser);
 	curl_easy_setopt(rest, CURLOPT_WRITEDATA, &error);
 
@@ -103,20 +104,20 @@ static int __rest_post(const char* url, const char *data)
 	/* set url */
 	curl_easy_setopt(rest, CURLOPT_URL, url);
 
-	/* POST */ 
+	/* POST */
 	curl_easy_setopt(rest, CURLOPT_POST, 1L);
 
-    /* read data */ 
+    /* read data */
 	curl_easy_setopt(rest, CURLOPT_READFUNCTION, __read_message);
 	curl_easy_setopt(rest, CURLOPT_READDATA, &msg);
 	curl_easy_setopt(rest, CURLOPT_POSTFIELDSIZE, msg.sizeleft);
-	
+
 	/* send it */
 	CURLcode result = curl_easy_perform(rest);
 
 	/* tidy up */
 	curl_easy_cleanup(rest);
-	
+
 	/* check for errors */
 	if(result != CURLE_OK) {
 		fprintf(stderr, "REST connection failed: %s\n", curl_easy_strerror(result));

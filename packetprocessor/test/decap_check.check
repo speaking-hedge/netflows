@@ -3,25 +3,26 @@
 
 #suite dcap_handling
 
+static void __pp_packet_handler(struct pp_context *pp_ctx,
+						uint8_t *data,
+						uint16_t len,
+						uint64_t ts) {
+
+	struct pp_packet_context pkt_ctx;
+	int rc = 0;
+	rc = pp_decap(data, len, ts, &pkt_ctx, pp_ctx->bp_filter);
+	ck_assert_msg( PP_DECAP_OKAY == rc, "decap failed" );
+	// TODO: check packet context
+	return;
+}
+
+
 #test general
 
 	struct pp_context pp_ctx;
 
-	void pp_packet_handler(struct pp_context *pp_ctx,
-							uint8_t *data,
-							uint16_t len,
-							uint64_t ts) {
-
-		struct pp_packet_context pkt_ctx;
-		int rc = 0;
-		rc = pp_decap(data, len, ts, &pkt_ctx, pp_ctx->bp_filter);
-		ck_assert_msg( PP_DECAP_OKAY == rc, "decap failed" );
-		// TODO: check packet context
-		return;
-	}
-	
 	/*
-		/*switch(rc) {
+		switch(rc) {
 		case PP_DECAP_OKAY:
 		case -PP_DECAP_L2_PROTO_UNKNOWN:
 		case -PP_DECAP_L3_PROTO_UNKNOWN:
@@ -32,9 +33,9 @@
 		default:
 	}*/
 
-	ck_assert_msg( 0 == pp_ctx_init(&pp_ctx, &pp_packet_handler), "packet processor failed\n");
+	ck_assert_msg( 0 == pp_ctx_init(&pp_ctx, &__pp_packet_handler), "packet processor context init\n");
 
-	pp_ctx.packet_source = "testcaps/testfile.pcap";
+	pp_ctx.packet_source = strdup("testcaps/testfile.pcap");
 	pp_ctx.action = PP_ACTION_ANALYZE_FILE;
 
 	int rc = pp_check_file(&pp_ctx);
