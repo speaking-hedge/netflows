@@ -66,7 +66,6 @@ int pp_analyzer_storage_init_int(uint32_t idx,
 
 	struct pp_analyzer_store_void *generic_store = NULL;
 	void *naked = NULL;
-
 	int i = 0;
 
 	/* create entry for the analyzer inside of the flow */
@@ -122,6 +121,7 @@ int pp_analyzer_storage_init_int(uint32_t idx,
 /**
  * @brief return a ptr where the data can be stored
  * @note just cast and assign your data, direction and timestamp is already assigned
+ * @retval returns ptr to the data part of the next entry
  */
 void* pp_analyzer_storage_get_next_location(uint32_t idx, struct pp_packet_context *pkt_ctx, struct pp_flow *flow_ctx) {
 
@@ -136,10 +136,11 @@ void* pp_analyzer_storage_get_next_location(uint32_t idx, struct pp_packet_conte
 	case PP_ANALYZER_MODE_PACKETCOUNT:
 		naked = generic_store->entries;
 		naked += generic_store->slot_size * (generic_store->write_pos % generic_store->available_slots);
+
 		((struct pp_analyzer_store_void_data *)naked)->timestamp = pkt_ctx->timestamp;
 		((struct pp_analyzer_store_void_data *)naked)->direction = pkt_ctx->direction;
 		generic_store->write_pos++;
-		return naked;
+		return &((struct pp_analyzer_store_void_data *)naked)->data;
 	case PP_ANALYZER_MODE_INFINITY:
 		/* get a new chunck of memory if we need some */
 		if(generic_store->available_slots == generic_store->write_pos) {
@@ -155,7 +156,7 @@ void* pp_analyzer_storage_get_next_location(uint32_t idx, struct pp_packet_conte
 		((struct pp_analyzer_store_void_data *)naked)->timestamp = pkt_ctx->timestamp;
 		((struct pp_analyzer_store_void_data *)naked)->direction = pkt_ctx->direction;
 		generic_store->write_pos++;
-		return naked;
+		return &((struct pp_analyzer_store_void_data *)naked)->data;
 	case PP_ANALYZER_MODE_TIMESPAN:
 
 		/* if the timespan between the new entry and the next entry is > then max_age,
@@ -170,7 +171,7 @@ void* pp_analyzer_storage_get_next_location(uint32_t idx, struct pp_packet_conte
 			generic_store->head_entry = generic_store->head_entry->next;
 			generic_store->write_pos++;
 			generic_store->used_slots++;
-			return naked;
+			return &((struct pp_analyzer_store_void_data *)naked)->data;
 		} else {
 			/* overwrite or increase ring size */
 			if (pkt_ctx->timestamp - generic_store->head_entry->next->timestamp > generic_store->mode_val) {
@@ -181,7 +182,7 @@ void* pp_analyzer_storage_get_next_location(uint32_t idx, struct pp_packet_conte
 				naked = generic_store->head_entry->next;
 				generic_store->head_entry = generic_store->head_entry->next;
 				generic_store->write_pos++;
-				return naked;
+				return &((struct pp_analyzer_store_void_data *)naked)->data;
 			} else {
 				/* insert a new element into the ring cause the next one
 				 * has not reached the age limit yet.
@@ -201,7 +202,7 @@ void* pp_analyzer_storage_get_next_location(uint32_t idx, struct pp_packet_conte
 				generic_store->write_pos++;
 				generic_store->used_slots++;
 				generic_store->available_slots++;
-				return naked;
+				return &((struct pp_analyzer_store_void_data *)naked)->data;
 			}
 		} /* __overwrite_or_insert_phase */
 	default:
@@ -246,7 +247,7 @@ int pp_analyzer_callback_for_each_entry(uint32_t idx, struct pp_flow *flow_ctx, 
 				/* TODO: remove
 				 * printf("%s\n", pp_packet_direction2strlong(((struct pp_analyzer_store_void_data*)naked)->direction));
 				 */
-				fnct(naked,
+				fnct(&((struct pp_analyzer_store_void_data *)naked)->data,
 					 ((struct pp_analyzer_store_void_data*)naked)->timestamp,
 					 ((struct pp_analyzer_store_void_data*)naked)->direction);
 				c++;
@@ -256,14 +257,14 @@ int pp_analyzer_callback_for_each_entry(uint32_t idx, struct pp_flow *flow_ctx, 
 			for (i = (generic_store->write_pos % generic_store->available_slots); i < generic_store->available_slots; i++) {
 				naked = generic_store->entries;
 				naked += (i * generic_store->slot_size);
-				fnct(naked,
+				fnct(&((struct pp_analyzer_store_void_data *)naked)->data,
 					 ((struct pp_analyzer_store_void_data*)naked)->timestamp,
 					 ((struct pp_analyzer_store_void_data*)naked)->direction);
 			}
 			for (i = 0; i < generic_store->write_pos % generic_store->available_slots; i++) {
 				naked = generic_store->entries;
 				naked += (i * generic_store->slot_size);
-				fnct(naked,
+				fnct(&((struct pp_analyzer_store_void_data *)naked)->data,
 					 ((struct pp_analyzer_store_void_data*)naked)->timestamp,
 					 ((struct pp_analyzer_store_void_data*)naked)->direction);
 			}
@@ -274,7 +275,7 @@ int pp_analyzer_callback_for_each_entry(uint32_t idx, struct pp_flow *flow_ctx, 
 		for (i = 0; i < generic_store->write_pos; i++) {
 			naked = generic_store->entries;
 			naked += (i * generic_store->slot_size);
-			fnct(naked,
+			fnct(&((struct pp_analyzer_store_void_data *)naked)->data,
 				 ((struct pp_analyzer_store_void_data*)naked)->timestamp,
 				 ((struct pp_analyzer_store_void_data*)naked)->direction);
 			c++;
@@ -288,12 +289,16 @@ int pp_analyzer_callback_for_each_entry(uint32_t idx, struct pp_flow *flow_ctx, 
 		do {
 			/* callback for all entries within accepted age */
 			if (ts_youngest - ((struct pp_analyzer_store_void_data *)naked)->timestamp <= generic_store->mode_val) {
-				fnct(naked, ((struct pp_analyzer_store_void_data*)naked)->timestamp, ((struct pp_analyzer_store_void_data*)naked)->direction);
+				fnct(&((struct pp_analyzer_store_void_data *)naked)->data,
+					((struct pp_analyzer_store_void_data*)naked)->timestamp,
+					((struct pp_analyzer_store_void_data*)naked)->direction);
 				c++;
 			}
 			naked = ((struct pp_analyzer_store_void_data *)naked)->next;
 		} while (naked != generic_store->head_entry);
-		fnct(generic_store->head_entry, ((struct pp_analyzer_store_void_data*)generic_store->head_entry)->timestamp, ((struct pp_analyzer_store_void_data*)generic_store->head_entry)->direction);
+		fnct(&((struct pp_analyzer_store_void_data*)generic_store->head_entry)->data,
+			((struct pp_analyzer_store_void_data*)generic_store->head_entry)->timestamp,
+			((struct pp_analyzer_store_void_data*)generic_store->head_entry)->direction);
 		return ++c;
 	default:
 		break;

@@ -10,7 +10,7 @@ static int __pp_run_live_netfilter(struct pp_context *pp_ctx);
 static void __pp_packet_handler(struct pp_context *pp_ctx, uint8_t *data, uint16_t len, uint64_t ts);
 static void __pp_ctx_dump(struct pp_context *pp_ctx);
 static int __rest_set_job_state(struct pp_context *pp_ctx, enum RestJobState state);
-static int __abort(struct pp_context *pp_ctx, char* msg);
+static int __pp_abort(struct pp_context *pp_ctx, char* msg);
 
 static void* __pp_show_stats_thread(void *arg);
 static void* __pp_report_thread(void *arg);
@@ -112,7 +112,7 @@ int main(int argc, char **argv) {
 			rc = __pp_run_live_netfilter(&pp_ctx);
 			break;
 		default:
-			rc = __abort(&pp_ctx, "unknown action specified. abort.\n");
+			rc = __pp_abort(&pp_ctx, "unknown action specified. abort.\n");
 	}
 
 	if (pp_ctx.processing_options & PP_PROC_OPT_SHOW_FLOWTOP) {
@@ -175,10 +175,11 @@ static void* __pp_show_stats_thread(void *arg) {
 static void* __pp_report_thread(void *arg) {
 
 	struct pp_context *pp_ctx = arg;
-	int b = 0, a = 0;
+	int b = 0;
 	struct pp_flow *flow = NULL;
 	char *report_data = NULL;
 	int sample_id = 0;
+	struct pp_analyzer *analyzer = NULL;
 
 	assert(arg);
 
@@ -196,17 +197,18 @@ static void* __pp_report_thread(void *arg) {
 
 					pthread_mutex_lock(&flow->lock);
 
-					for (a=0; a < pp_ctx->analyzer_num; a++) {
+					analyzer = pp_ctx->analyzers;
+					while (analyzer) {
 
-						if (pp_ctx->analyzers[a].report) {
+						if (analyzer->report) {
 
-							if (pp_ctx->analyzers[a].analyze) {
-								pp_ctx->analyzers[a].analyze(a, flow);
+							if (analyzer->analyze) {
+								analyzer->analyze(analyzer->idx, flow);
 							}
 
 							/* TODO: report to rest service if configured */
 
-							report_data = pp_ctx->analyzers[a].report(a, flow);
+							report_data = analyzer->report(analyzer->idx, flow);
 							if (report_data) {
 
 								if (pp_ctx->job_id) {
@@ -220,6 +222,7 @@ static void* __pp_report_thread(void *arg) {
 								free(report_data);
 							}
 						} /* __has_report_function */
+						analyzer = analyzer->next_analyzer;
 					} /* __loop_analyzers */
 
 					pthread_mutex_unlock(&flow->lock);
@@ -315,6 +318,7 @@ static void __pp_packet_handler(struct pp_context *pp_ctx,
 	uint32_t a = 0;
 	int rc = 0;
 	enum PP_ANALYZER_ACTION req_action = 0;
+	struct pp_analyzer *analyzer = NULL;
 
 	if (pp_ctx->bp_filter && !bpf_filter(pp_ctx->bp_filter, data, len, len)) {
 
@@ -370,9 +374,11 @@ static void __pp_packet_handler(struct pp_context *pp_ctx,
 			} /* __new_flow */
 
 			/* run selected analyzers */
-			for (a = 0; a < pp_ctx->analyzer_num; a++) {
+			analyzer = pp_ctx->analyzers;
+			while (analyzer) {
 				/* TODO: use action */
-				req_action = pp_ctx->analyzers[a].inspect(pp_ctx->analyzers[a].idx, &pkt_ctx, flow);
+				req_action = analyzer->inspect(analyzer->idx, &pkt_ctx, flow);
+				analyzer = analyzer->next_analyzer;
 			}
 
 			/* run ndpi */
@@ -486,11 +492,11 @@ static int __pp_run_live_socket(struct pp_context *pp_ctx) {
 
 	switch(pp_live_socket_init(pp_ctx)) {
 		case EPERM:
-			return __abort(pp_ctx, "invalid permissions - failed to init live capture. abort.\n");
+			return __pp_abort(pp_ctx, "invalid permissions - failed to init live capture. abort.\n");
 		case EINVAL:
-			return __abort(pp_ctx, "invalid configuration - failed to init live capture. abort.\n");
+			return __pp_abort(pp_ctx, "invalid configuration - failed to init live capture. abort.\n");
 		case EBADF:
-			return __abort(pp_ctx, "error during network setup - failed to init live capture. abort.\n");
+			return __pp_abort(pp_ctx, "error during network setup - failed to init live capture. abort.\n");
 		case ENODEV:
 			// TODO: send REST error message
 			fprintf(stderr, "failed to access interface %s - failed to init live capture. abort.\n", pp_ctx->packet_source);
@@ -732,7 +738,8 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_context *pp_ctx) {
 		return 1;
 	}
 
-	if ( !(pp_ctx->action & PP_ACTION_ANALYZE_LIVE) &&
+	if ( !(pp_ctx->action & PP_ACTION_ANALYZE_LIVE_PF_SOCKET) &&
+		 !(pp_ctx->action & PP_ACTION_ANALYZE_LIVE_NETFILTER) &&
 		 (pp_ctx->processing_options & PP_PROC_OPT_SHOW_FLOWTOP)) {
 
 		fprintf(stderr, "flowtop only available in live mode. abort.\n");
@@ -888,4 +895,22 @@ void pp_usage(void) {
 	printf("-L --list-ndpi-protocols       output a list of supported protocols\n");
 	printf("-N --dump-ndpi-stats           dump protocol usage for nDPI protocols\n");
 	printf("                               (activates use of nDPI implicitly)\n");
+}
+
+/**
+ * @brief: print error, send error to REST and abort programm
+ */
+static int __pp_abort(struct pp_context *pp_ctx, char* msg) {
+	fprintf(stderr, "%s", msg);
+	if (pp_ctx->processing_options & PP_PROC_OPT_USE_REST) { // TODO: Check only once
+		if (pp_ctx->job_id == NULL) {
+			fprintf(stderr,"REST requires job-id.\n");
+			return 1;
+		}
+		if (pp_rest_job_state_msg(pp_ctx->rest_backend_url, pp_ctx->job_id, JOB_STATE_INTERNAL_ERROR, msg)) {
+			fprintf(stderr, "REST communication error.\n");
+			return 1;
+		}
+	}
+	return 1;
 }

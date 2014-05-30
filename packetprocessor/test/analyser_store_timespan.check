@@ -12,14 +12,14 @@ PP_ANALYZER_STORE_CREATE(pp_test_packetcount, struct __pp_test_store_packetcount
 
 #suite analyzer_store
 
-static void analyze_callback(void *data, uint64_t ts, int direction) {
+static void analyze_callback(void *data, uint64_t timestamp, int direction) {
 
 	ck_assert_msg(data != NULL, "data points to NULL in callback.\n");
-	//printf("callback for a:%d time:%" PRIu64 "\n", ((struct pp_test_packetcount_data *)data)->data.a, ((struct pp_test_packetcount_data *)data)->timestamp);
-	ck_assert_msg(((struct pp_test_packetcount_data *)data)->data.b == 2*((struct pp_test_packetcount_data *)data)->data.a, "b(=%d) != 2*a(=%d)",((struct pp_test_packetcount_data *)data)->data.b, ((struct pp_test_packetcount_data *)data)->data.a);
-	ck_assert_msg(((struct pp_test_packetcount_data *)data)->data.c == 7*((struct pp_test_packetcount_data *)data)->data.a, "c(%d) != a(%d)",((struct pp_test_packetcount_data *)data)->data.c, ((struct pp_test_packetcount_data *)data)->data.a);
-	ck_assert_msg(((struct pp_test_packetcount_data *)data)->timestamp == 100*((struct pp_test_packetcount_data *)data)->data.a, "timestamp(=%" PRIu64 ") != 3*a (=%d)",((struct pp_test_packetcount_data *)data)->timestamp, ((struct pp_test_packetcount_data *)data)->data.a );
-	ck_assert_msg(((struct pp_test_packetcount_data *)data)->direction == ((struct pp_test_packetcount_data *)data)->data.a%2?PP_PKT_DIR_UPSTREAM:PP_PKT_DIR_DOWNSTREAM, "invalid //direction");
+	//printf("callback for a:%d time:%" PRIu64 "\n", ((struct __pp_test_store_packetcount *)data)->a, timestamp);
+	ck_assert_msg(((struct __pp_test_store_packetcount *)data)->b == 2*((struct __pp_test_store_packetcount *)data)->a, "b(=%d) != 2*a(=%d)",((struct __pp_test_store_packetcount *)data)->b, ((struct __pp_test_store_packetcount *)data)->a);
+	ck_assert_msg(((struct __pp_test_store_packetcount *)data)->c == 7*((struct __pp_test_store_packetcount *)data)->a, "c(%d) != a(%d)",((struct __pp_test_store_packetcount *)data)->c, ((struct __pp_test_store_packetcount *)data)->a);
+	ck_assert_msg(timestamp == 100*((struct __pp_test_store_packetcount *)data)->a, "timestamp(=%" PRIu64 ") != 3*a (=%d)", timestamp, ((struct __pp_test_store_packetcount *)data)->a );
+	ck_assert_msg(direction == ((struct __pp_test_store_packetcount *)data)->a%2?PP_PKT_DIR_UPSTREAM:PP_PKT_DIR_DOWNSTREAM, "invalid //direction");
 }
 
 #test test_case_under_full_within_time
@@ -27,7 +27,7 @@ static void analyze_callback(void *data, uint64_t ts, int direction) {
 	struct pp_flow flow_ctx;
 	int i = 0;
 	int packet_count = 100;
-	struct pp_test_packetcount_data *data = NULL;
+	struct __pp_test_store_packetcount *data = NULL;
 	struct pp_packet_context packet;
 
 	flow_ctx.analyzer_data = calloc(1, sizeof(struct pp_analyzer_store_void));
@@ -48,9 +48,9 @@ static void analyze_callback(void *data, uint64_t ts, int direction) {
 		ck_assert_msg(data != NULL, "failed to get next write location");
 
 		/* set some testdata */
-		data->data.a = i;
-		data->data.b = i+i;
-		data->data.c = 7*i;
+		data->a = i;
+		data->b = i+i;
+		data->c = 7*i;
 	}
 
 	i = pp_analyzer_callback_for_each_entry(0, &flow_ctx, &analyze_callback);
@@ -63,7 +63,7 @@ static void analyze_callback(void *data, uint64_t ts, int direction) {
 	struct pp_flow flow_ctx;
 	int i = 0;
 	int packet_count = 100;
-	struct pp_test_packetcount_data *data = NULL;
+	struct __pp_test_store_packetcount *data = NULL;
 	struct pp_packet_context packet;
 
 	flow_ctx.analyzer_data = calloc(1, sizeof(struct pp_analyzer_store_void));
@@ -84,9 +84,9 @@ static void analyze_callback(void *data, uint64_t ts, int direction) {
 		ck_assert_msg(data != NULL, "failed to get next write location");
 
 		/* set some testdata */
-		data->data.a = i;
-		data->data.b = i+i;
-		data->data.c = 7*i;
+		data->a = i;
+		data->b = i+i;
+		data->c = 7*i;
 	}
 
 	i = pp_analyzer_callback_for_each_entry(0, &flow_ctx, &analyze_callback);
@@ -99,7 +99,7 @@ static void analyze_callback(void *data, uint64_t ts, int direction) {
 	struct pp_flow flow_ctx;
 	int i = 0;
 	int packet_count = 100;
-	struct pp_test_packetcount_data *data = NULL;
+	struct __pp_test_store_packetcount *data = NULL;
 	struct pp_packet_context packet;
 
 	flow_ctx.analyzer_data = calloc(1, sizeof(struct pp_analyzer_store_void));
@@ -120,9 +120,9 @@ static void analyze_callback(void *data, uint64_t ts, int direction) {
 		ck_assert_msg(data != NULL, "failed to get next write location");
 
 		/* set some testdata */
-		data->data.a = i;
-		data->data.b = i+i;
-		data->data.c = 7*i;
+		data->a = i;
+		data->b = i+i;
+		data->c = 7*i;
 	}
 
 	i = pp_analyzer_callback_for_each_entry(0, &flow_ctx, &analyze_callback);
@@ -134,7 +134,7 @@ static void analyze_callback(void *data, uint64_t ts, int direction) {
 	struct pp_flow flow_ctx;
 	int i = 0;
 	int packet_count = 100;
-	struct pp_test_packetcount_data *data = NULL;
+	struct __pp_test_store_packetcount *data = NULL;
 	struct pp_packet_context packet;
 
 	flow_ctx.analyzer_data = calloc(1, sizeof(struct pp_analyzer_store_void));
@@ -158,9 +158,9 @@ static void analyze_callback(void *data, uint64_t ts, int direction) {
 		ck_assert_msg(data != NULL, "failed to get next write location");
 
 		/* set some testdata */
-		data->data.a = i;
-		data->data.b = i+i;
-		data->data.c = 7*i;
+		data->a = i;
+		data->b = i+i;
+		data->c = 7*i;
 	}
 
 	i = pp_analyzer_callback_for_each_entry(0, &flow_ctx, &analyze_callback);
@@ -172,7 +172,7 @@ static void analyze_callback(void *data, uint64_t ts, int direction) {
 	struct pp_flow flow_ctx;
 	int i = 0;
 	int packet_count = 100;
-	struct pp_test_packetcount_data *data = NULL;
+	struct __pp_test_store_packetcount *data = NULL;
 	struct pp_packet_context packet;
 
 	flow_ctx.analyzer_data = calloc(1, sizeof(struct pp_analyzer_store_void));
@@ -196,9 +196,9 @@ static void analyze_callback(void *data, uint64_t ts, int direction) {
 		ck_assert_msg(data != NULL, "failed to get next write location");
 
 		/* set some testdata */
-		data->data.a = i;
-		data->data.b = i+i;
-		data->data.c = 7*i;
+		data->a = i;
+		data->b = i+i;
+		data->c = 7*i;
 	}
 
 	i = pp_analyzer_callback_for_each_entry(0, &flow_ctx, &analyze_callback);

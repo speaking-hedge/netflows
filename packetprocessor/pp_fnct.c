@@ -438,7 +438,7 @@ int pp_get_proto_name(uint layer, uint32_t protocol, char* buf, size_t buf_len) 
  */
 inline int pp_attach_analyzers_to_flow(struct pp_context *pp_ctx, struct pp_flow *flow_ctx) {
 
-	int a = 0;
+	struct pp_analyzer *analyzer = NULL;
 
 	if (!(flow_ctx->analyzer_data = calloc(pp_ctx->analyzer_num, sizeof(struct pp_analyzer_store_void)))) {
 		pthread_mutex_unlock(&flow_ctx->lock);
@@ -446,11 +446,13 @@ inline int pp_attach_analyzers_to_flow(struct pp_context *pp_ctx, struct pp_flow
 	}
 
 	/* init flow local data for each analyzer */
-	for (a = 0; a < pp_ctx->analyzer_num; a++) {
-		pp_ctx->analyzers[a].init(pp_ctx->analyzers[a].idx,
-									 flow_ctx,
-									 pp_ctx->analyzer_mode,
-									 pp_ctx->analyzer_mode_val);
+	analyzer = pp_ctx->analyzers;
+	while(analyzer) {
+		analyzer->init(analyzer->idx,
+						flow_ctx,
+						pp_ctx->analyzer_mode,
+						pp_ctx->analyzer_mode_val);
+		analyzer = analyzer->next_analyzer;
 	}
 
 	return 0;
@@ -513,6 +515,7 @@ int pp_live_netfilter_init(struct pp_context *pp_ctx) {
  */
 int pp_live_netfilter_capture(struct pp_context *pp_ctx, volatile int *run) {
 
+	return 0;
 }
 
 /**
@@ -522,4 +525,6 @@ int pp_live_netfilter_capture(struct pp_context *pp_ctx, volatile int *run) {
  * @retval 1 on error / no open socket found
  */
 int pp_live_netfilter_shutdown(struct pp_context *pp_ctx) {
+
+	return 0;
 }
