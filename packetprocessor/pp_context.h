@@ -4,6 +4,7 @@
 #include <pthread.h>
 #include <pp_analyzer.h>
 #include <pp_flow.h>
+#include <libnetfilter_queue/libnetfilter_queue.h>
 
 struct pp_context {
 
@@ -23,7 +24,16 @@ struct pp_context {
 	pcap_t *pcap_handle;
 	int packet_socket;
 
-	void (*packet_handler_cb)(struct pp_context *pp_ctx, uint8_t *data, uint16_t len, uint64_t timestamp);
+	struct nfq_handle *nf_handle;
+	struct nfq_q_handle *nf_queue_handle;
+	int nf_socket;
+
+	/* callback to be invoked on each packet */
+	enum PP_ANALYZER_ACTION (*packet_handler_cb)(struct pp_context *pp_ctx,
+							  enum PP_OSI_LAYERS first_layer,
+							  uint8_t *data,
+							  uint16_t len,
+							  uint64_t timestamp_usec);
 
 	enum {
 		PP_PROC_OPT_NONE             = 0,

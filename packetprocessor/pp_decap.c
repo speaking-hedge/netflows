@@ -8,15 +8,21 @@ static int __pp_decap_ipv6_options(uint32_t protocol, size_t *len, uint32_t *off
 
 /**
  * @brief general packet decapsulation
+ * @param first_layer where to start in the osi layer to parse the packet
  * @param data of the packet
  * @param len of the packet in bytes
- * @param timestamp the packet was received
+ * @param timestamp the packet was received (usec)
  * @param pkt_ctx holds the context of the current packet
  * @param filter points to the berkley packet filter program (NULL if not used)
  * @retval PP_DECAP_OKAY on success
  * @retval !=PP_DECAP_OKAY
  */
-enum PP_DECAP_RESULT pp_decap(uint8_t *data, size_t len, uint64_t ts, struct pp_packet_context *pkt_ctx, struct bpf_insn *filter) {
+enum PP_DECAP_RESULT pp_decap(enum PP_OSI_LAYERS first_layer,
+							  uint8_t *data,
+							  size_t len,
+							  uint64_t ts_usec,
+							  struct pp_packet_context *pkt_ctx,
+							  struct bpf_insn *filter) {
 
 	int32_t rc_proto = 0;
 	uint32_t offset = 0;
@@ -25,17 +31,28 @@ enum PP_DECAP_RESULT pp_decap(uint8_t *data, size_t len, uint64_t ts, struct pp_
 
 	pkt_ctx->packet = data;
 	pkt_ctx->length = len;
-	pkt_ctx->timestamp = ts;
+	pkt_ctx->timestamp = ts_usec;
 	memset(pkt_ctx->protocols, 0, sizeof(pkt_ctx->protocols));
 	memset(pkt_ctx->offsets, 0, sizeof(pkt_ctx->offsets));
 	memset(&pkt_ctx->src_addr.v6, 0, sizeof(pkt_ctx->src_addr.v6));
 	memset(&pkt_ctx->dst_addr.v6, 0, sizeof(pkt_ctx->src_addr.v6));
 	pkt_ctx->direction = PP_PKT_DIR_UNKNOWN;
 
-	if ((rc_proto = __pp_decap_l2(0, &len, &offset, pkt_ctx)) >= 0 ) {
+	if (likely(first_layer == PP_OSI_LAYER_2)) {
+		if ((rc_proto = __pp_decap_l2(0, &len, &offset, pkt_ctx)) >= 0 ) {
+			if ((rc_proto = __pp_decap_l3(rc_proto, &len, &offset, pkt_ctx)) >= 0) {
+				return __pp_decap_l4(rc_proto, &len, &offset, pkt_ctx);
+			}
+		}
+	} else if (first_layer == PP_OSI_LAYER_3) {
+
+		/* get version from packet - malicious packets could kill us */
+		rc_proto = ((struct iphdr*)data)->version == 4 ? ETH_P_IP : ETH_P_IPV6;
 		if ((rc_proto = __pp_decap_l3(rc_proto, &len, &offset, pkt_ctx)) >= 0) {
 			return __pp_decap_l4(rc_proto, &len, &offset, pkt_ctx);
 		}
+	} else {
+		return -PP_DECAP_INVALID_FIRST_LAYER;
 	}
 
 	return rc_proto;

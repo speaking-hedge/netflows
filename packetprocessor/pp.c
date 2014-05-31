@@ -7,7 +7,7 @@ static void __pp_set_action(struct pp_context *pp_ctx, enum pp_action action, ch
 static int __pp_run_pcap_file(struct pp_context *pp_ctx);
 static int __pp_run_live_socket(struct pp_context *pp_ctx);
 static int __pp_run_live_netfilter(struct pp_context *pp_ctx);
-static void __pp_packet_handler(struct pp_context *pp_ctx, uint8_t *data, uint16_t len, uint64_t ts);
+static enum PP_ANALYZER_ACTION __pp_packet_handler(struct pp_context *pp_ctx, enum PP_OSI_LAYERS first_layer, uint8_t *data, uint16_t len, uint64_t ts);
 static void __pp_ctx_dump(struct pp_context *pp_ctx);
 static int __rest_set_job_state(struct pp_context *pp_ctx, enum RestJobState state);
 static int __pp_abort(struct pp_context *pp_ctx, char* msg);
@@ -219,7 +219,7 @@ static void* __pp_report_thread(void *arg) {
 										fprintf(stderr, "REST communication error.\n");
 									}
 								}
-								
+
 								if (pp_ctx->job_id) {
 									printf("{job-id: \"%s\"}\n", pp_ctx->job_id);
 								}
@@ -312,21 +312,23 @@ static int __pp_flow_list_add(struct pp_context *pp_ctx, struct pp_flow *flow_ct
 /**
  * @brief central packet handler callback, invokes analyzers
  * @param pp_ctx holds the config of pp
+ * @param first_layer the first layer in the given data
  * @param data of the packet
  * @param len number of bytes in the packet
- * @param timestamp the packet was received
+ * @param timestamp the packet was received (usec)
  */
-static void __pp_packet_handler(struct pp_context *pp_ctx,
-							uint8_t *data,
-							uint16_t len,
-							uint64_t ts) {
+static enum PP_ANALYZER_ACTION __pp_packet_handler(struct pp_context *pp_ctx,
+								enum PP_OSI_LAYERS first_layer,
+								uint8_t *data,
+								uint16_t len,
+								uint64_t ts) {
 
 	struct pp_packet_context pkt_ctx;
 	struct pp_flow *flow = NULL;
 	uint32_t is_new = 0;
 	uint32_t a = 0;
 	int rc = 0;
-	enum PP_ANALYZER_ACTION req_action = 0;
+	enum PP_ANALYZER_ACTION req_action = PP_ANALYZER_ACTION_NONE;
 	struct pp_analyzer *analyzer = NULL;
 
 	if (pp_ctx->bp_filter && !bpf_filter(pp_ctx->bp_filter, data, len, len)) {
@@ -336,10 +338,10 @@ static void __pp_packet_handler(struct pp_context *pp_ctx,
 		pp_ctx->bytes_seen += len;
 		pthread_mutex_unlock(&pp_ctx->stats_lock);
 
-		return;
+		return PP_ANALYZER_ACTION_ERROR;
 	}
 
-	rc = pp_decap(data, len, ts, &pkt_ctx, pp_ctx->bp_filter);
+	rc = pp_decap(first_layer, data, len, ts, &pkt_ctx, pp_ctx->bp_filter);
 	switch(rc) {
 	case PP_DECAP_OKAY:
 
@@ -362,14 +364,14 @@ static void __pp_packet_handler(struct pp_context *pp_ctx,
 				if(pp_attach_analyzers_to_flow(pp_ctx, flow)) {
 					pthread_mutex_unlock(&flow->lock);
 					/* TODO: error handling */
-					return;
+					return PP_ANALYZER_ACTION_ERROR;
 				}
 
 				/* add flow to flow list */
 				if (__pp_flow_list_add(pp_ctx, flow)) {
 					pthread_mutex_unlock(&flow->lock);
 					/* TODO: error handling */
-					return;
+					return PP_ANALYZER_ACTION_ERROR;
 				}
 
 				/* attach ndpi if selected */
@@ -377,7 +379,7 @@ static void __pp_packet_handler(struct pp_context *pp_ctx,
 					pp_ndpi_flow_attach(flow, &pkt_ctx)) {
 					/* TODO: error handling */
 					printf("failed to attach ndpi flow ctx\n");
-					return;
+					return PP_ANALYZER_ACTION_ERROR;
 				}
 
 			} /* __new_flow */
@@ -386,7 +388,7 @@ static void __pp_packet_handler(struct pp_context *pp_ctx,
 			analyzer = pp_ctx->analyzers;
 			while (analyzer) {
 				/* TODO: use action */
-				req_action = analyzer->inspect(analyzer->idx, &pkt_ctx, flow);
+				req_action |= analyzer->inspect(analyzer->idx, &pkt_ctx, flow);
 				analyzer = analyzer->next_analyzer;
 			}
 
@@ -454,6 +456,8 @@ static void __pp_packet_handler(struct pp_context *pp_ctx,
 	}
 
 	pthread_mutex_unlock(&pp_ctx->stats_lock);
+
+	return req_action;
 }
 
 /**
@@ -486,7 +490,10 @@ static int __pp_run_pcap_file(struct pp_context *pp_ctx) {
 
 	while (run && (pkt = pcap_next(pp_ctx->pcap_handle, &hdr))) {
 		if (hdr.caplen == hdr.len) {
-			pp_ctx->packet_handler_cb(pp_ctx, (uint8_t*)pkt, hdr.caplen, (hdr.ts.tv_sec * 1000000) + (hdr.ts.tv_usec));
+			pp_ctx->packet_handler_cb(pp_ctx,
+									  PP_OSI_LAYER_2,
+									  (uint8_t*)pkt, hdr.caplen,
+									  (hdr.ts.tv_sec * 1000000) + (hdr.ts.tv_usec));
 		}
 	}
 
@@ -532,10 +539,10 @@ static int __pp_run_live_netfilter(struct pp_context *pp_ctx) {
 			fprintf(stderr, "invalid permissions - failed to init live capture. abort.\n");
 			return 1;
 		case EINVAL:
-			fprintf(stderr, "invalid configuration - failed to init live capture. abort.\n");
+			fprintf(stderr, "invalid interface name given - failed to init live capture. abort.\n");
 			return 1;
 		case EBADF:
-			fprintf(stderr, "error during network setup - failed to init live capture. abort.\n");
+			fprintf(stderr, "error during network setup - failed to setup netfilter hook. abort.\n");
 			return 1;
 		case ENODEV:
 			fprintf(stderr, "failed to access interface %s - failed to init live capture. abort.\n", pp_ctx->packet_source);
@@ -581,14 +588,14 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_context *pp_ctx) {
 		{"use-ndpi", 0, NULL, 'D'},
 		{"list-ndpi-protocols", 0, NULL, 'L'},
 		{"dump-ndpi-stats", 0, NULL, 'N'},
-		{"live-analyze-nf", required_argument, NULL, 'z'},
+		{"live-analyze-nf", optional_argument, NULL, 'z'},
 		{NULL, 0, NULL, 0}
 	};
 	int opt = 0, i = 0;
 	char *endptr = NULL;
 
 	while(1) {
-		opt = getopt_long(argc, argv, "hva:l:c:o:jf:J:r::PFTpwit:n:g::DLNz:", options, NULL);
+		opt = getopt_long(argc, argv, "hva:l:c:o:jf:J:r::PFTpwit:n:g::DLNz::", options, NULL);
 		if (opt == -1)
 			break;
 
@@ -609,7 +616,11 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_context *pp_ctx) {
 				__pp_set_action(pp_ctx, PP_ACTION_ANALYZE_LIVE_PF_SOCKET, optarg);
 				break;
 			case 'z':
-				__pp_set_action(pp_ctx, PP_ACTION_ANALYZE_LIVE_NETFILTER, optarg);
+				if (optarg) {
+					__pp_set_action(pp_ctx, PP_ACTION_ANALYZE_LIVE_NETFILTER, optarg);
+				} else {
+					__pp_set_action(pp_ctx, PP_ACTION_ANALYZE_LIVE_NETFILTER, "all");
+				}
 				pp_ctx->processing_options |= PP_PROC_OPT_CAN_DROP_PACKETS;
 				break;
 			case 'c':
@@ -805,7 +816,7 @@ static void __pp_set_action(struct pp_context *pp_ctx, enum pp_action action, ch
 	}
 	pp_ctx->action = action;
 	free(pp_ctx->packet_source);
-	if (!(pp_ctx->packet_source = strdup(optarg))) {
+	if (!(pp_ctx->packet_source = strdup(packet_source))) {
 		fprintf(stderr, "failed to alloc memory while setting action. abort.\n");
 		exit(1);
 	}
@@ -869,10 +880,9 @@ void pp_usage(void) {
 	printf("-l --live-analyze-socket <if>  capture and analyze traffic from \n");
 	printf("                               given interface (may need root)\n");
 	printf("-z --live-analyze-nf <if>      capture and analyze traffic from\n");
-	printf("                               given interface (may need root),\n");
+	printf("                               given interface (default: all),\n");
+	printf("                               to handle all interfaces use name 'all'\n");
 	printf("                               packets can be blocked by analyzers\n");
-	printf("                               to handle all interfaces use 'all' as\n");
-	printf("                               as the interface name\n");
 	printf("-f --bp-filter <bpf>           set Berkeley Packet Filter by given\n");
 	printf("                               string (you may quote the string)\n");
 	printf("\n");

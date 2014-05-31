@@ -100,7 +100,12 @@ struct pp_packet_context {
 #define unlikely(x)     (x)
 #endif
 
-enum PP_DECAP_RESULT pp_decap(uint8_t *data, size_t len, uint64_t ts, struct pp_packet_context *pkt_ctx, struct bpf_insn *filter);
+enum PP_DECAP_RESULT pp_decap(enum PP_OSI_LAYERS first_layer,
+							  uint8_t *data,
+							  size_t len,
+							  uint64_t ts_usec,
+							  struct pp_packet_context *pkt_ctx,
+							  struct bpf_insn *filter);
 void pp_dump_packet(struct pp_packet_context *pkt_ctx);
 
 const char* pp_packet_direction2str(enum __pp_packet_direction dir);

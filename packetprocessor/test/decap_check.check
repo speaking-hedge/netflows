@@ -3,17 +3,18 @@
 
 #suite dcap_handling
 
-static void __pp_packet_handler(struct pp_context *pp_ctx,
+static enum PP_ANALYZER_ACTION __pp_packet_handler(struct pp_context *pp_ctx,
+						enum PP_OSI_LAYERS first_layer,
 						uint8_t *data,
 						uint16_t len,
 						uint64_t ts) {
 
 	struct pp_packet_context pkt_ctx;
 	int rc = 0;
-	rc = pp_decap(data, len, ts, &pkt_ctx, pp_ctx->bp_filter);
+	rc = pp_decap(PP_OSI_LAYER_2, data, len, ts, &pkt_ctx, pp_ctx->bp_filter);
 	ck_assert_msg( PP_DECAP_OKAY == rc, "decap failed" );
 	// TODO: check packet context
-	return;
+	return PP_ANALYZER_ACTION_NONE;
 }
 
 

@@ -8,7 +8,7 @@ static int __pp_create_hash(struct pp_context *pp_ctx, char **hash);
  * @retval 0 on success
  * @retval 1 on error
  */
-int pp_ctx_init(struct pp_context *pp_ctx, void (*packet_handler)(struct pp_context *pp_ctx, uint8_t *data, uint16_t len, uint64_t timestamp)) {
+int pp_ctx_init(struct pp_context *pp_ctx, enum PP_ANALYZER_ACTION (*packet_handler)(struct pp_context *pp_ctx, enum PP_OSI_LAYERS first_layer, uint8_t *data, uint16_t len, uint64_t timestamp)) {
 
 	pp_ctx->action = PP_ACTION_UNDEFINED;
 
@@ -18,6 +18,9 @@ int pp_ctx_init(struct pp_context *pp_ctx, void (*packet_handler)(struct pp_cont
 	pp_ctx->pcap_handle = NULL;
 	pp_ctx->packet_socket = 0;
 	pp_ctx->packet_handler_cb = packet_handler;
+	pp_ctx->nf_handle = NULL;
+	pp_ctx->nf_queue_handle = NULL;
+	pp_ctx->nf_socket = -1;
 
 	pp_ctx->processing_options = PP_PROC_OPT_NONE;
 
@@ -175,7 +178,7 @@ int pp_pcap_close(struct pp_context *pp_ctx) {
 	return 1;
 }
 
-static int __pp_live_check_perm(void);
+static int __pp_live_check_perm(cap_value_t flag);
 
 /**
  * @brief init traffic sniffing via netfilter hook
@@ -193,7 +196,7 @@ int pp_live_socket_init(struct pp_context *pp_ctx) {
 		return EINVAL;
 	}
 
-	if(__pp_live_check_perm()) {
+	if(__pp_live_check_perm(CAP_NET_RAW)) {
 		return EPERM;
 	}
 
@@ -223,7 +226,6 @@ int pp_live_socket_init(struct pp_context *pp_ctx) {
  * @brief run live capture on given device invoking packet handler of given pp_ctx
  * @param pp_ctx holds the config of pp
  * @param run flag, set to 0 to stop capture
- * @param dump flag, set to 1 to trigger a dump of the current state
  * @retval 0 if capture runs/finish without errors
  * @retval 1 on error during capture
  */
@@ -252,9 +254,18 @@ int pp_live_socket_capture(struct pp_context *pp_ctx, volatile int *run) {
 			default:
 				/* TODO: get an idea how inaccurate the time measurement is */
 				clock_gettime(CLOCK_MONOTONIC, &ts);
-				inb = recvfrom(pp_ctx->packet_socket, buf, 9000, 0, (struct sockaddr*)&src_addr, &addr_len);
+				inb = recvfrom(pp_ctx->packet_socket,
+							   buf,
+							   9000,
+							   0, (
+							   struct sockaddr*)&src_addr,
+							   &addr_len);
 				if (inb) {
-					pp_ctx->packet_handler_cb(pp_ctx, buf, inb, ts.tv_sec * 1000000 + ts.tv_nsec/1000);
+					pp_ctx->packet_handler_cb(pp_ctx,
+											  PP_OSI_LAYER_2,
+											  buf,
+											  inb,
+											  ts.tv_sec * 1000000 + ts.tv_nsec/1000);
 					/* NOTE: packet direction -> src_addr.sll_pkttype, see man packet */
 				}
 		} /* __poll */
@@ -281,10 +292,11 @@ int pp_live_socket_shutdown(struct pp_context *pp_ctx) {
 
 /**
  * @brief check for proper permissions to use AF_PACKET
+ * @param flag to check for
  * @retval 0 if sufficient permissions detected
  * @retval 1 if insufficient permissions detected
  */
-static int __pp_live_check_perm(void) {
+static int __pp_live_check_perm(cap_value_t flag) {
 
 	cap_t capp;
 	cap_flag_value_t v;
@@ -297,7 +309,7 @@ static int __pp_live_check_perm(void) {
 		perror("cap_get_proc() failed");
 		return -1;
 	}
-	if(cap_get_flag(capp, CAP_NET_RAW, CAP_EFFECTIVE, &v)) {
+	if(cap_get_flag(capp, flag, CAP_EFFECTIVE, &v)) {
 		perror("cap_get_flag() failed");
 		return -1;
 	}
@@ -482,38 +494,197 @@ inline void pp_detach_analyzers_from_flow(struct pp_context *pp_ctx, struct pp_f
 
 }
 
+/**
+ * @brief callback for handling packets reveived via netfilter queue hook
+ * this function can drop packets if there was an error during the packet handling
+ * and PP_DROP_PACKET_ON_ERROR is not 0 or if an analyzer request the packet to be
+ * dropped by enabling the PP_ANALYZER_ACTION_DROP flag in its return value
+ */
+static int __pp_netfilter_callback(struct nfq_q_handle *qh,
+								   struct nfgenmsg *nfmsg,
+								   struct nfq_data *nfa,
+								   void *pp_ctx) {
+
+	u_int32_t id = 0;
+	struct nfqnl_msg_packet_hdr *ph = NULL;
+	unsigned char *packet = NULL;
+	uint16_t pkt_size = 0;
+	struct timeval ts;
+	enum PP_ANALYZER_ACTION req_action = 0;
+
+	ph = nfq_get_msg_packet_hdr(nfa);
+    if (ph) {
+        id = ntohl(ph->packet_id);
+	}
+
+	nfq_get_timestamp(nfa, &ts);
+
+	pkt_size = nfq_get_payload(nfa, &packet);
+
+	req_action = ((struct pp_context*)pp_ctx)->packet_handler_cb(pp_ctx,
+																 PP_OSI_LAYER_3,
+																 (uint8_t*) packet,
+																 pkt_size,
+																 ts.tv_sec*1000000 + ts.tv_usec);
+
+	if (req_action & PP_ANALYZER_ACTION_ERROR) {
+		if (PP_DROP_PACKET_ON_ERROR) {
+			return nfq_set_verdict(qh, id, NF_DROP, 0, NULL);
+		} else {
+			return nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
+		}
+	}
+
+	if (req_action & PP_ANALYZER_ACTION_DROP) {
+		return nfq_set_verdict(qh, id, NF_DROP, 0, NULL);
+	}
+	return nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
+}
 
 /**
  * @brief init traffic sniffing via netfilter hook
+ * @note --queue-bypass is only used to protect the systems
+ * network connection if the packet prozessor dies without
+ * cleaning the iptables setup.
  * @retval 0 on success
  */
 int pp_live_netfilter_init(struct pp_context *pp_ctx) {
 
-	if (setuid(0)) {
+	char cmd[100];
+
+	if (setuid(0) || __pp_live_check_perm(CAP_NET_ADMIN)) {
 		return EPERM;
 	}
 
-	/* setup netfilter queue hook
-	*
-	*  add queue hock:
-	*  sudo iptables -A INPUT -i eth0 -p tcp -j NFQUEUE --queue-num 0
-	* remove:
-	*  sudo iptables -D INPUT -i eth0 -p tcp -j NFQUEUE --queue-num 0
-	* */
-	printf("%s\n", pp_ctx->packet_source);
-	exit(1);
+	/* TODO@hecke: clean up the iptables setup and cleanup part */
 
+	/* ipv4 input */
+	if (!strcasecmp(pp_ctx->packet_source, "all")) {
+		strcpy(cmd, "iptables -A INPUT -j NFQUEUE --queue-num 0 --queue-bypass");
+	} else {
+		if (100 < snprintf(cmd, 100, "iptables -A INPUT -i %s -j NFQUEUE --queue-num 0 --queue-bypass", pp_ctx->packet_source)) {
+			pp_live_netfilter_shutdown(pp_ctx);
+			return EINVAL;
+		}
+	}
+
+	if (system(cmd)) {
+		pp_live_netfilter_shutdown(pp_ctx);
+		return EBADF;
+	}
+
+	/* ipv4 output */
+	if (!strcasecmp(pp_ctx->packet_source, "all")) {
+		strcpy(cmd, "iptables -A OUTPUT -j NFQUEUE --queue-num 0 --queue-bypass");
+	} else {
+		if (100 < snprintf(cmd, 100, "iptables -A OUTPUT -o %s -j NFQUEUE --queue-num 0 --queue-bypass", pp_ctx->packet_source)) {
+			pp_live_netfilter_shutdown(pp_ctx);
+			return EINVAL;
+		}
+	}
+
+	if (system(cmd)) {
+		pp_live_netfilter_shutdown(pp_ctx);
+		return EBADF;
+	}
+
+	/* ipv6 input */
+	if (!strcasecmp(pp_ctx->packet_source, "all")) {
+		strcpy(cmd, "ip6tables -A INPUT -j NFQUEUE --queue-num 0 --queue-bypass");
+	} else {
+		if (100 < snprintf(cmd, 100, "ip6tables -A INPUT -i %s -j NFQUEUE --queue-num 0 --queue-bypass", pp_ctx->packet_source)) {
+			pp_live_netfilter_shutdown(pp_ctx);
+			return EINVAL;
+		}
+	}
+
+	if (system(cmd)) {
+		pp_live_netfilter_shutdown(pp_ctx);
+		return EBADF;
+	}
+
+	/* ipv6 output */
+	if (!strcasecmp(pp_ctx->packet_source, "all")) {
+		strcpy(cmd, "ip6tables -A OUTPUT -j NFQUEUE --queue-num 0 --queue-bypass");
+	} else {
+		if (100 < snprintf(cmd, 100, "ip6tables -A OUTPUT -o %s -j NFQUEUE --queue-num 0 --queue-bypass", pp_ctx->packet_source)) {
+			pp_live_netfilter_shutdown(pp_ctx);
+			return EINVAL;
+		}
+	}
+
+	if (system(cmd)) {
+		pp_live_netfilter_shutdown(pp_ctx);
+		return EBADF;
+	}
+
+	if (!(pp_ctx->nf_handle = nfq_open())) {
+		pp_live_netfilter_shutdown(pp_ctx);
+		return ENODEV;
+	}
+
+	if (nfq_unbind_pf(pp_ctx->nf_handle, AF_UNSPEC) < 0) {
+		pp_live_netfilter_shutdown(pp_ctx);
+		return ENODEV;
+	}
+
+	if (nfq_bind_pf(pp_ctx->nf_handle, AF_UNSPEC) < 0) {
+		pp_live_netfilter_shutdown(pp_ctx);
+		return ENODEV;
+	}
+
+	if (!(pp_ctx->nf_queue_handle = nfq_create_queue(pp_ctx->nf_handle,
+													 0,
+													 &__pp_netfilter_callback,
+													 pp_ctx))) {
+		pp_live_netfilter_shutdown(pp_ctx);
+		return ENODEV;
+	}
+
+	if (nfq_set_mode(pp_ctx->nf_queue_handle, NFQNL_COPY_PACKET, 0xffff) < 0) {
+		pp_live_netfilter_shutdown(pp_ctx);
+		return ENODEV;
+	}
+
+	pp_ctx->nf_socket = nfq_fd(pp_ctx->nf_handle);
+
+	return 0;
 }
 
 /**
- * @brief run live capture on given device invoking packet handler of given pp_ctx
+ * @brief run live capture using a netfilter queue based hook
  * @param pp_ctx holds the config of pp
  * @param run flag, set to 0 to stop capture
- * @param dump flag, set to 1 to trigger a dump of the current state
  * @retval 0 if capture runs/finish without errors
  * @retval 1 on error during capture
  */
 int pp_live_netfilter_capture(struct pp_context *pp_ctx, volatile int *run) {
+
+	uint8_t buf[9000];
+	int inb;
+	struct pollfd fd = {0};
+	struct timespec ppoll_tout;
+	sigset_t sigmask;
+
+	ppoll_tout.tv_sec = 0;
+	ppoll_tout.tv_nsec = 250000;
+	sigfillset(&sigmask);
+
+	while(*run) {
+		fd.fd = pp_ctx->nf_socket;
+		fd.events = POLLIN;
+		switch(ppoll(&fd, 1, &ppoll_tout, &sigmask)) {
+			case -1:
+				return 1;
+			case 0:
+				break;
+			default:
+				inb = recvfrom(pp_ctx->nf_socket, buf, 9000, 0, NULL, NULL);
+				if (inb) {
+					nfq_handle_packet(pp_ctx->nf_handle, (char*)buf, inb);
+				}
+		} /* __poll */
+	} /* __while_run */
 
 	return 0;
 }
@@ -525,6 +696,89 @@ int pp_live_netfilter_capture(struct pp_context *pp_ctx, volatile int *run) {
  * @retval 1 on error / no open socket found
  */
 int pp_live_netfilter_shutdown(struct pp_context *pp_ctx) {
+
+	char cmd[100];
+	int rc = 0;
+
+	/* ipv4 input */
+	if (!strcasecmp(pp_ctx->packet_source, "all")) {
+		strcpy(cmd, "iptables -D INPUT -j NFQUEUE --queue-num 0 --queue-bypass");
+		rc = system(cmd);
+	} else {
+		if (100 >= snprintf(cmd, 100, "iptables -D INPUT -i %s -j NFQUEUE --queue-num 0 --queue-bypass", pp_ctx->packet_source)) {
+			rc = system(cmd);
+		} else {
+			rc = 1;
+		}
+	}
+
+	if (rc) {
+		fprintf(stderr, "failed to remove hook from netfilter - please check your iptable config\n");
+		fprintf(stderr, "command to remove hook (maybe truncated): %s\n", cmd);
+	}
+
+	/* ipv4 output */
+	if (!strcasecmp(pp_ctx->packet_source, "all")) {
+		strcpy(cmd, "iptables -D OUTPUT -j NFQUEUE --queue-num 0 --queue-bypass");
+		rc = system(cmd);
+	} else {
+		if (100 >= snprintf(cmd, 100, "iptables -D OUTPUT -o %s -j NFQUEUE --queue-num 0 --queue-bypass", pp_ctx->packet_source)) {
+			rc = system(cmd);
+		} else {
+			rc = 1;
+		}
+	}
+
+	if (rc) {
+		fprintf(stderr, "failed to remove hook from netfilter - please check your iptable config\n");
+		fprintf(stderr, "command to remove hook (maybe truncated): %s\n", cmd);
+	}
+
+	/* ipv6 input */
+	if (!strcasecmp(pp_ctx->packet_source, "all")) {
+		strcpy(cmd, "ip6tables -D INPUT -j NFQUEUE --queue-num 0 --queue-bypass");
+		rc = system(cmd);
+	} else {
+		if (100 >= snprintf(cmd, 100, "ip6tables -D INPUT -i %s -j NFQUEUE --queue-num 0 --queue-bypass", pp_ctx->packet_source)) {
+			rc = system(cmd);
+		} else {
+			rc = 1;
+		}
+	}
+
+	if (rc) {
+		fprintf(stderr, "failed to remove hook from netfilter - please check your iptable config\n");
+		fprintf(stderr, "command to remove hook (maybe truncated): %s\n", cmd);
+	}
+
+	/* ipv6 output */
+	if (!strcasecmp(pp_ctx->packet_source, "all")) {
+		strcpy(cmd, "ip6tables -D OUTPUT -j NFQUEUE --queue-num 0 --queue-bypass");
+		rc = system(cmd);
+	} else {
+		if (100 >= snprintf(cmd, 100, "ip6tables -D OUTPUT -o %s -j NFQUEUE --queue-num 0 --queue-bypass", pp_ctx->packet_source)) {
+			rc = system(cmd);
+		} else {
+			rc = 1;
+		}
+	}
+
+	if (rc) {
+		fprintf(stderr, "failed to remove hook from netfilter - please check your iptable config\n");
+		fprintf(stderr, "command to remove hook (maybe truncated): %s\n", cmd);
+	}
+
+	if (pp_ctx->nf_handle) {
+		if (pp_ctx->nf_queue_handle) {
+			nfq_destroy_queue(pp_ctx->nf_queue_handle);
+		}
+		pp_ctx->nf_queue_handle = NULL;
+
+		nfq_unbind_pf(pp_ctx->nf_handle, AF_UNSPEC);
+		nfq_close(pp_ctx->nf_handle);
+		pp_ctx->nf_socket = -1;
+		pp_ctx->nf_handle = NULL;
+	}
 
 	return 0;
 }

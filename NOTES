@@ -10,6 +10,21 @@ libgcrypt / libgcrypt-dev
 libcap2 / libcap-dev
 libcurl3 / libcurl4-openssl-dev
 libncurses / libncurses-dev
+libnfnetlink
+libnetfilter_queue
+
+during development
+------------------
+
+If the program crashed during using the netfilter hook, check your iptables
+for remaining hook entries. To clean the mess, you can run:
+
+sudo iptables  -L INPUT  --line-numbers | grep NFQUEUE | awk '{ system("sudo iptables -D INPUT "$1) }'
+sudo iptables  -L OUTPUT  --line-numbers | grep NFQUEUE | awk '{ system("sudo iptables -D OUTPUT "$1) }'
+sudo ip6tables  -L INPUT  --line-numbers | grep NFQUEUE | awk '{ system("sudo ip6tables -D INPUT "$1) }'
+sudo ip6tables  -L OUTPUT  --line-numbers | grep NFQUEUE | awk '{ system("sudo ip6tables -D OUTPUT "$1) }'
+
+Be aware that this will kick out all NFQUEUE rules.
 
 test environment
 ----------------
@@ -31,7 +46,7 @@ test/run_container.sh
 - some folders (eg. /var/www/html) are exported to test/mapped_folders/
 so you can easily exchange files between the container and the host
 
-test/provisioning.sh 
+test/provisioning.sh
 - build the binaries and deploy them alongside with the files from
 services/ to the webserver
 

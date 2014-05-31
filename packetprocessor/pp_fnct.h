@@ -11,12 +11,16 @@
 #include <gcrypt.h>
 #include <signal.h>
 
+#include <netinet/in.h>
+#include <linux/netfilter.h>
+#include <libnetfilter_queue/libnetfilter_queue.h>
+
 #include <pp_context.h>
 #include <pp_ndpi.h>
 
 extern int ppoll(struct pollfd *fds, nfds_t nfds, const struct timespec *timeout_ts, const sigset_t *sigmask);
 
-int pp_ctx_init(struct pp_context *pp_ctx, void (*packet_handler)(struct pp_context *pp_ctx, uint8_t *data, uint16_t len, uint64_t timestamp));
+int pp_ctx_init(struct pp_context *pp_ctx, enum PP_ANALYZER_ACTION (*packet_handler)(struct pp_context *pp_ctx, enum PP_OSI_LAYERS first_layer, uint8_t *data, uint16_t len, uint64_t timestamp));
 void pp_ctx_cleanup(struct pp_context *pp_ctx);
 int pp_check_file(struct pp_context *pp_ctx);
 

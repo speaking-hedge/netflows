@@ -23,6 +23,9 @@
 /* stop running nDPI for UDP packets after PP_UDP_NDPI_PACKET_LIMIT packets and protocol is still unknown */
 #define PP_UDP_NDPI_PACKET_LIMIT	8
 
+/* if there was an error during packet handling - drop the packet (=1) or accept it (=0) */
+#define PP_DROP_PACKET_ON_ERROR		0
+
 enum PP_DECAP_RESULT {
 	/* packet successfull decapsulated and analysed */
 	PP_DECAP_OKAY = 0,
@@ -38,6 +41,8 @@ enum PP_DECAP_RESULT {
 	PP_DECAP_L3_PROTO_UNKNOWN,
 	/* l4 - protocol not supported */
 	PP_DECAP_L4_PROTO_UNKNOWN,
+	/* invalid first layer given */
+	PP_DECAP_INVALID_FIRST_LAYER,
 	PP_DECPA_EOL
 };
 
