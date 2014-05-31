@@ -28,6 +28,7 @@ static size_t __answer_parser( char *ptr, size_t size, size_t nmemb, void *userd
 	// TODO: doc says ptr is not null terminated
 	//       program says it is
 	// TODO: code below is very ugly
+	// FIXME: use some JSON parser library, but get rid of this !
 	if (strstr(ptr, "\"status\":\"Error\""))
 	{
 		*(char *)userdata = 1;
@@ -93,6 +94,7 @@ static int __pp_rest_send(const char* url) {
 static int __rest_post(const char* url, const char *data)
 {
 	CURL *rest = curl_easy_init();
+	char error = 0;
 
 	/* failed to init curl? */
 	if (!rest) return 1;
@@ -111,7 +113,9 @@ static int __rest_post(const char* url, const char *data)
 	curl_easy_setopt(rest, CURLOPT_READFUNCTION, __read_message);
 	curl_easy_setopt(rest, CURLOPT_READDATA, &msg);
 	curl_easy_setopt(rest, CURLOPT_POSTFIELDSIZE, msg.sizeleft);
-
+	curl_easy_setopt(rest, CURLOPT_WRITEFUNCTION, __answer_parser);
+	curl_easy_setopt(rest, CURLOPT_WRITEDATA, &error);
+	
 	/* send it */
 	CURLcode result = curl_easy_perform(rest);
 
@@ -123,7 +127,10 @@ static int __rest_post(const char* url, const char *data)
 		fprintf(stderr, "REST connection failed: %s\n", curl_easy_strerror(result));
 		return 1;
 	}
-
+	if (error) {
+		return 1;
+	}
+	
 	curl_global_cleanup();
 	return 0;
 }
@@ -186,4 +193,54 @@ int pp_rest_job_state(const char* url, const char* job_hash, enum RestJobState s
 	strcat(msg, job_hash);
 
 	return __pp_rest_send(msg);
+}
+
+/**
+ * @brief upload analyzer data
+ * @param url to connect to
+ * @param flow_id id of the flow
+ * @param sample_id id of the sample
+ * @param data data to be uploaded
+ * @retval 0 on success
+ * @retval 1 on error
+ */
+int pp_rest_post_analyze_data(const char* url, const char* job_hash, uint32_t analyzer_id, uint32_t flow_id, int sample_id, const char* data) {
+	char *suffix = "/accessresults/addresult";
+	char *param_jobid="job_id=";
+	char *param_flowid="&flow_id=";
+	char *param_analyzer_id="&analyzer_id=";
+	char *param_snapshot_id="&snapshot_id=";
+	char *param_data="&data=";
+
+	char post_url[strlen(url) + strlen(suffix) + 1]; // POST url/accessresults/addressresult
+	strcpy(post_url, url);
+	strcat(post_url, suffix);
+
+	char flow_id_str[10];
+	sprintf(flow_id_str, "%d", flow_id);
+	char sample_id_str[10];
+	sprintf(sample_id_str, "%d", sample_id);
+	char analyzer_id_str[3];
+	sprintf(analyzer_id_str, "%d", analyzer_id);
+	
+	char post_data[
+		strlen(param_jobid) + strlen(job_hash) +
+		strlen(param_analyzer_id) + strlen(analyzer_id_str) +
+		strlen(param_flowid) + strlen(flow_id_str) +
+		strlen(param_snapshot_id) + strlen(sample_id_str) + 
+		strlen(param_data) + strlen(data) + 1
+	];
+	strcpy(post_data, param_jobid);         // job_id = 
+	strcat(post_data, job_hash);
+	strcat(post_data, param_analyzer_id);   // analyzer_id = 
+	strcat(post_data, analyzer_id_str);
+	strcat(post_data, param_flowid);       // flow_id = 
+	strcat(post_data, flow_id_str);
+	strcat(post_data, param_snapshot_id);   // snapshot_id =
+	strcat(post_data, sample_id_str);
+	strcat(post_data, param_data);          // data = 
+	strcat(post_data, data);
+
+	return __rest_post(post_url, post_data);
+
 }

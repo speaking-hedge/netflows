@@ -3,6 +3,7 @@
 
 #include <string.h>
 #include <curl/curl.h>
+#include <stdint.h>
 
 enum RestJobState {
 	JOB_STATE_FINISHED,
@@ -21,5 +22,6 @@ struct ReadMessage {
 
 int pp_rest_job_state(const char* url, const char* job_hash, enum RestJobState state);
 int pp_rest_job_state_msg(const char* url, const char* job_hash, enum RestJobState state, char* error);
+int pp_rest_post_analyze_data(const char* url, const char* job_hash, uint32_t analyzer_id, uint32_t flow_id, int sample_id, const char* data);
 
 #endif /* __PP_REST */

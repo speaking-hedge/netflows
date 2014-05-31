@@ -206,11 +206,20 @@ static void* __pp_report_thread(void *arg) {
 								analyzer->analyze(analyzer->idx, flow);
 							}
 
-							/* TODO: report to rest service if configured */
-
 							report_data = analyzer->report(analyzer->idx, flow);
 							if (report_data) {
 
+								if (pp_ctx->processing_options & PP_PROC_OPT_USE_REST && pp_ctx->job_id) {
+									if (pp_rest_post_analyze_data(pp_ctx->rest_backend_url,
+									                              pp_ctx->job_id,
+									                              analyzer->idx, // TODO: is this right?
+									                              flow->id,
+									                              sample_id,
+									                              report_data)) {
+										fprintf(stderr, "REST communication error.\n");
+									}
+								}
+								
 								if (pp_ctx->job_id) {
 									printf("{job-id: \"%s\"}\n", pp_ctx->job_id);
 								}
