@@ -52,8 +52,5 @@ TARGET_LINK_LIBRARIES(packet-processor-static ${PROJECT_LINK_DEPENDENCIES})
 # trigger build if needed
 ADD_DEPENDENCIES(packet-processor-static libpcap.a)
 ADD_DEPENDENCIES(packet-processor-static libndpi.la)
-ADD_DEPENDENCIES(packet-processor-static generator)
-EXECUTE_PROCESS(COMMAND ./pcaps/tests/generate)
-EXECUTE_PROCESS(COMMAND mv generated.pcap ./packetprocessor/test/testcaps/testfile.pcap)
 
 add_subdirectory(test)

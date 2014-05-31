@@ -1,3 +1,4 @@
+#include <string.h>
 #include "generate.h"
 
 void write_pcap_header(FILE *file)
@@ -10,7 +11,7 @@ void write_pcap_header(FILE *file)
 	pcap_header.sigfigs = 0;
 	pcap_header.snaplen = 0xffff;
 	pcap_header.network = 1; // 1 = ethernet
-	
+
 	fwrite(&pcap_header, sizeof(struct pcap_hdr_s), 1, file);
 }
 
@@ -24,7 +25,7 @@ void write_packet_header(FILE *file, size_t len, size_t timeadd)
 	time.tm_mon = 1;
 	time.tm_year = 114;
 	time_t t = mktime(&time);
-	
+
 	struct pcaprec_hdr_s pac_header;
 	pac_header.ts_sec = t;
 	pac_header.ts_usec = timeadd%1000000;
@@ -56,7 +57,7 @@ void write_layer3_ip4(FILE *file, size_t len)
 	layer3.check = 0; // wrong checksum
 	layer3.saddr = 0x0100007f; // 127.0.0.1
 	layer3.daddr = 0x0100007f;
-	
+
 	fwrite(&layer3, sizeof(struct iphdr), 1, file);
 }
 
@@ -75,25 +76,34 @@ void write_layer4_tcp(FILE *file)
 	fwrite(&layer4, sizeof(struct tcphdr), 1, file);
 }
 
-int main() {
-	FILE *file;
-	file = fopen("generated.pcap","wb");
+int main(int argc, char **argv) {
 
-	char *data = "HELLO WORLD!";
-	
+	FILE *file = NULL;
+	const char *data = "HELLO WORLD!";
+
+	if (argc > 1) {
+		file = fopen(argv[1], "wb");
+	} else {
+		file = fopen("generated.pcap", "wb");
+	}
+
+	if (!file) {
+		perror("failed to open file");
+		exit(1);
+	}
+
 	write_pcap_header(file);
-	
+
 	write_packet_header(file, sizeof(struct ether_header) + sizeof(struct iphdr) + sizeof(struct tcphdr) + sizeof(data), 0);
-	
+
 	write_layer2(file);
-	
+
 	write_layer3_ip4(file, sizeof(struct iphdr) + sizeof(struct tcphdr) + sizeof(data));
 
 	write_layer4_tcp(file);
 
-	fwrite(data, sizeof(data), 1, file);
+	fwrite(data, strlen(data), 1, file);
 
 	fclose(file);
 	return 0;
-	
 }
