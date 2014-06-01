@@ -57,11 +57,15 @@ SET_TARGET_PROPERTIES(pcap PROPERTIES IMPORTED_LOCATION ${CMAKE_CURRENT_BINARY_D
 # add libndpi
 ADD_LIBRARY(libndpi STATIC IMPORTED)
 SET_TARGET_PROPERTIES(libndpi PROPERTIES IMPORTED_LOCATION ${CMAKE_CURRENT_BINARY_DIR}/libndpi.a)
+# add jansson
+ADD_LIBRARY(libjansson STATIC IMPORTED)
+SET_TARGET_PROPERTIES(libjansson PROPERTIES IMPORTED_LOCATION ${CMAKE_CURRENT_BINARY_DIR}/libjansson.a)
 
 TARGET_LINK_LIBRARIES(packet-processor-static ${PROJECT_LINK_DEPENDENCIES})
 
 # trigger build if needed
 ADD_DEPENDENCIES(packet-processor-static libpcap.a)
 ADD_DEPENDENCIES(packet-processor-static libndpi.la)
+ADD_DEPENDENCIES(packet-processor-static jansson.a)
 
 add_subdirectory(test)

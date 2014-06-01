@@ -4,6 +4,7 @@
 #include <string.h>
 #include <curl/curl.h>
 #include <stdint.h>
+#include <jansson.h>
 
 enum RestJobState {
 	JOB_STATE_FINISHED,

@@ -24,23 +24,32 @@ static size_t __read_message( char *ptr, size_t size, size_t nmemb, void *userda
  * @param *userdata error flag
  */
 static size_t __answer_parser( char *ptr, size_t size, size_t nmemb, void *userdata) {
+	json_t *root, *status, *message;
+	json_error_t error;
+	const char *status_text;
 
-	// TODO: doc says ptr is not null terminated
-	//       program says it is
-	// TODO: code below is very ugly
-	// FIXME: use some JSON parser library, but get rid of this !
-	if (strstr(ptr, "\"status\":\"Error\""))
+	// add nullpointer at end of read bytes to terminate string
+	*(ptr + nmemb) = '\0';
+
+	root = json_loads(ptr, 0, &error);
+
+	if(!root)
 	{
-		*(char *)userdata = 1;
-		char *msg = strstr(ptr, "\"message\":");
-		if (msg)
-		{
-			msg += 10;
-			fprintf(stderr, "REST error: ");
-			fprintf(stderr, "%s", msg);
-			fprintf(stderr, "\n");
-		} else {
-			fprintf(stderr, "unknown REST error.\n");
+		fprintf(stderr, "REST response JSON error: on line %d: %s\n", error.line, error.text);
+		*(char *)userdata = 1; // maybe change this to error message
+	}
+
+	status = json_object_get(root, "status");
+	if(json_is_string(status))
+	{
+		if (!strcmp(json_string_value(status), "Error")) {
+			*(char *)userdata = 1;
+			message = json_object_get(root, "message");
+			if (json_is_string(message)) {
+				fprintf(stderr, "REST response error: %s\n", json_string_value(message));
+			} else {
+				fprintf(stderr, "unknown REST response error\n");
+			}
 		}
 	}
 	return size * nmemb;
