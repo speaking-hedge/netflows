@@ -1,6 +1,23 @@
 #include <pp_fnct.h>
 
+enum __PP_NETFILTER_IP_VERSION {
+	PP_NETFILTER_IP_VERSION_4	= 0,
+	PP_NETFILTER_IP_VERSION_6
+};
+
+enum __PP_NETFILTER_CHAIN {
+	PP_NETFILTER_CHAIN_INPUT	= 0,
+	PP_NETFILTER_CHAIN_OUTPUT
+};
+
 static int __pp_create_hash(struct pp_context *pp_ctx, char **hash);
+static int __pp_netfilter_hook_setup(enum __PP_NETFILTER_IP_VERSION ipv,
+									 enum __PP_NETFILTER_CHAIN chain,
+									 char *device);
+static int __pp_netfilter_hook_remove(enum __PP_NETFILTER_IP_VERSION ipv,
+									 enum __PP_NETFILTER_CHAIN chain,
+									 char *device,
+									 uint8_t show_rm_cmd);
 
 /**
  * @brief init the given ctx
@@ -542,6 +559,98 @@ static int __pp_netfilter_callback(struct nfq_q_handle *qh,
 }
 
 /**
+ * @brief install an iptables netfilter queue hook
+ * @param ipv ip version to install the hook for
+ * @param chain name the iptables chain to set the hook on
+ * @param device device name to act on (if set to all, act on all available devices)
+ * @retval 0 on success
+ * @retval !=0 on error
+ */
+static int __pp_netfilter_hook_setup(enum __PP_NETFILTER_IP_VERSION ipv,
+									 enum __PP_NETFILTER_CHAIN chain,
+									 char *device) {
+
+	char cmd[200];
+
+	assert(device);
+
+	if (!strcasecmp(device, "all")) {
+		sprintf(cmd, "ip%stables -A %s -j NFQUEUE --queue-num 0 --queue-bypass", ipv == PP_NETFILTER_IP_VERSION_4?"":"6",
+																				chain == PP_NETFILTER_CHAIN_INPUT?"INPUT":"OUTPUT");
+	} else {
+		if (200 < snprintf(cmd, 200, "ip%stables -A %s -%c %s -j NFQUEUE --queue-num 0 --queue-bypass", ipv == PP_NETFILTER_IP_VERSION_4?"":"6",
+																										chain == PP_NETFILTER_CHAIN_INPUT?"INPUT":"OUTPUT",
+																										chain == PP_NETFILTER_CHAIN_INPUT?'i':'o',
+																										device)) {
+			return EINVAL;
+		}
+	}
+
+	if (system(cmd)) {
+		return EBADF;
+	}
+
+	return 0;
+}
+
+/**
+ * @brief remove an iptables netfilter queue hook
+ * @param ipv ip version to remove the hook for
+ * @param chain name the iptables chain to delete the hook from
+ * @param device device name the hook was attached to (all for no specific device)
+ * @param show_rm_cmd if set != 0, show (truncated) cmd to remove the hook manually
+ * @retval 0 on success
+ * @retval !=0 on error
+ */
+static int __pp_netfilter_hook_remove(enum __PP_NETFILTER_IP_VERSION ipv,
+									 enum __PP_NETFILTER_CHAIN chain,
+									 char *device,
+									 uint8_t show_rm_cmd) {
+
+	char cmd[200];
+
+	assert(device);
+
+	if (!strcasecmp(device, "all")) {
+		sprintf(cmd, "ip%stables -D %s -j NFQUEUE --queue-num 0 --queue-bypass", ipv == PP_NETFILTER_IP_VERSION_4?"":"6",
+																				chain == PP_NETFILTER_CHAIN_INPUT?"INPUT":"OUTPUT");
+	} else {
+		if (200 < snprintf(cmd, 200, "ip%stables -D %s -%c %s -j NFQUEUE --queue-num 0 --queue-bypass", ipv == PP_NETFILTER_IP_VERSION_4?"":"6",
+																										chain == PP_NETFILTER_CHAIN_INPUT?"INPUT":"OUTPUT",
+																										chain == PP_NETFILTER_CHAIN_INPUT?'i':'o',
+																										device)) {
+			if (show_rm_cmd) {
+				fprintf(stderr, "iptables command was was truncated cause it exceeds the size of cmd buffer.\n");
+				fprintf(stderr, "failed to remove netfilter hook for ip version %d, chain %s, device %s.\n", ipv == PP_NETFILTER_IP_VERSION_4?4:6,
+																											 chain == PP_NETFILTER_CHAIN_INPUT?"INPUT":"OUTPUT",
+																											 device);
+				fprintf(stderr, "you can try to remove the hook manually by running the following command:\n");
+				fprintf(stderr, "ip%stables -D %s -%c %s -j NFQUEUE --queue-num 0 --queue-bypass", ipv == PP_NETFILTER_IP_VERSION_4?"":"6",
+																										chain == PP_NETFILTER_CHAIN_INPUT?"INPUT":"OUTPUT",
+																										chain == PP_NETFILTER_CHAIN_INPUT?'i':'o',
+																										device);
+				return EINVAL;
+			}
+		}
+	}
+
+	if (system(cmd)) {
+		if (show_rm_cmd) {
+			fprintf(stderr, "failed to remove netfilter hook for ip version %d, chain %s, device %s.\n", ipv == PP_NETFILTER_IP_VERSION_4?4:6,
+																										 chain == PP_NETFILTER_CHAIN_INPUT?"INPUT":"OUTPUT",
+																										 device);
+			fprintf(stderr, "failed command:\n");
+			fprintf(stderr, "%s\n", cmd);
+		}
+		return EBADF;
+	}
+
+	return 0;
+}
+
+
+
+/**
  * @brief init traffic sniffing via netfilter hook
  * @note --queue-bypass is only used to protect the systems
  * network connection if the packet prozessor dies without
@@ -550,72 +659,30 @@ static int __pp_netfilter_callback(struct nfq_q_handle *qh,
  */
 int pp_live_netfilter_init(struct pp_context *pp_ctx) {
 
-	char cmd[100];
+	int rc = 0;
 
 	if (setuid(0) || __pp_live_check_perm(CAP_NET_ADMIN)) {
 		return EPERM;
 	}
 
-	/* TODO@hecke: clean up the iptables setup and cleanup part */
-
-	/* ipv4 input */
-	if (!strcasecmp(pp_ctx->packet_source, "all")) {
-		strcpy(cmd, "iptables -A INPUT -j NFQUEUE --queue-num 0 --queue-bypass");
-	} else {
-		if (100 < snprintf(cmd, 100, "iptables -A INPUT -i %s -j NFQUEUE --queue-num 0 --queue-bypass", pp_ctx->packet_source)) {
-			pp_live_netfilter_shutdown(pp_ctx);
-			return EINVAL;
-		}
-	}
-
-	if (system(cmd)) {
+	if ( (rc = __pp_netfilter_hook_setup(PP_NETFILTER_IP_VERSION_4, PP_NETFILTER_CHAIN_INPUT, pp_ctx->packet_source))) {
 		pp_live_netfilter_shutdown(pp_ctx);
-		return EBADF;
+		return rc;
 	}
 
-	/* ipv4 output */
-	if (!strcasecmp(pp_ctx->packet_source, "all")) {
-		strcpy(cmd, "iptables -A OUTPUT -j NFQUEUE --queue-num 0 --queue-bypass");
-	} else {
-		if (100 < snprintf(cmd, 100, "iptables -A OUTPUT -o %s -j NFQUEUE --queue-num 0 --queue-bypass", pp_ctx->packet_source)) {
-			pp_live_netfilter_shutdown(pp_ctx);
-			return EINVAL;
-		}
-	}
-
-	if (system(cmd)) {
+	if ( (rc = __pp_netfilter_hook_setup(PP_NETFILTER_IP_VERSION_4, PP_NETFILTER_CHAIN_OUTPUT, pp_ctx->packet_source))) {
 		pp_live_netfilter_shutdown(pp_ctx);
-		return EBADF;
+		return rc;
 	}
 
-	/* ipv6 input */
-	if (!strcasecmp(pp_ctx->packet_source, "all")) {
-		strcpy(cmd, "ip6tables -A INPUT -j NFQUEUE --queue-num 0 --queue-bypass");
-	} else {
-		if (100 < snprintf(cmd, 100, "ip6tables -A INPUT -i %s -j NFQUEUE --queue-num 0 --queue-bypass", pp_ctx->packet_source)) {
-			pp_live_netfilter_shutdown(pp_ctx);
-			return EINVAL;
-		}
-	}
-
-	if (system(cmd)) {
+	if ( (rc = __pp_netfilter_hook_setup(PP_NETFILTER_IP_VERSION_6, PP_NETFILTER_CHAIN_INPUT, pp_ctx->packet_source))) {
 		pp_live_netfilter_shutdown(pp_ctx);
-		return EBADF;
+		return rc;
 	}
 
-	/* ipv6 output */
-	if (!strcasecmp(pp_ctx->packet_source, "all")) {
-		strcpy(cmd, "ip6tables -A OUTPUT -j NFQUEUE --queue-num 0 --queue-bypass");
-	} else {
-		if (100 < snprintf(cmd, 100, "ip6tables -A OUTPUT -o %s -j NFQUEUE --queue-num 0 --queue-bypass", pp_ctx->packet_source)) {
-			pp_live_netfilter_shutdown(pp_ctx);
-			return EINVAL;
-		}
-	}
-
-	if (system(cmd)) {
+	if ( (rc = __pp_netfilter_hook_setup(PP_NETFILTER_IP_VERSION_6, PP_NETFILTER_CHAIN_OUTPUT, pp_ctx->packet_source))) {
 		pp_live_netfilter_shutdown(pp_ctx);
-		return EBADF;
+		return rc;
 	}
 
 	if (!(pp_ctx->nf_handle = nfq_open())) {
@@ -700,73 +767,11 @@ int pp_live_netfilter_shutdown(struct pp_context *pp_ctx) {
 	char cmd[100];
 	int rc = 0;
 
-	/* ipv4 input */
-	if (!strcasecmp(pp_ctx->packet_source, "all")) {
-		strcpy(cmd, "iptables -D INPUT -j NFQUEUE --queue-num 0 --queue-bypass");
-		rc = system(cmd);
-	} else {
-		if (100 >= snprintf(cmd, 100, "iptables -D INPUT -i %s -j NFQUEUE --queue-num 0 --queue-bypass", pp_ctx->packet_source)) {
-			rc = system(cmd);
-		} else {
-			rc = 1;
-		}
-	}
+	__pp_netfilter_hook_remove(PP_NETFILTER_IP_VERSION_4, PP_NETFILTER_CHAIN_INPUT, pp_ctx->packet_source, 1);
+	__pp_netfilter_hook_remove(PP_NETFILTER_IP_VERSION_4, PP_NETFILTER_CHAIN_OUTPUT, pp_ctx->packet_source, 1);
+	__pp_netfilter_hook_remove(PP_NETFILTER_IP_VERSION_6, PP_NETFILTER_CHAIN_INPUT, pp_ctx->packet_source, 1);
+	__pp_netfilter_hook_remove(PP_NETFILTER_IP_VERSION_6, PP_NETFILTER_CHAIN_OUTPUT, pp_ctx->packet_source, 1);
 
-	if (rc) {
-		fprintf(stderr, "failed to remove hook from netfilter - please check your iptable config\n");
-		fprintf(stderr, "command to remove hook (maybe truncated): %s\n", cmd);
-	}
-
-	/* ipv4 output */
-	if (!strcasecmp(pp_ctx->packet_source, "all")) {
-		strcpy(cmd, "iptables -D OUTPUT -j NFQUEUE --queue-num 0 --queue-bypass");
-		rc = system(cmd);
-	} else {
-		if (100 >= snprintf(cmd, 100, "iptables -D OUTPUT -o %s -j NFQUEUE --queue-num 0 --queue-bypass", pp_ctx->packet_source)) {
-			rc = system(cmd);
-		} else {
-			rc = 1;
-		}
-	}
-
-	if (rc) {
-		fprintf(stderr, "failed to remove hook from netfilter - please check your iptable config\n");
-		fprintf(stderr, "command to remove hook (maybe truncated): %s\n", cmd);
-	}
-
-	/* ipv6 input */
-	if (!strcasecmp(pp_ctx->packet_source, "all")) {
-		strcpy(cmd, "ip6tables -D INPUT -j NFQUEUE --queue-num 0 --queue-bypass");
-		rc = system(cmd);
-	} else {
-		if (100 >= snprintf(cmd, 100, "ip6tables -D INPUT -i %s -j NFQUEUE --queue-num 0 --queue-bypass", pp_ctx->packet_source)) {
-			rc = system(cmd);
-		} else {
-			rc = 1;
-		}
-	}
-
-	if (rc) {
-		fprintf(stderr, "failed to remove hook from netfilter - please check your iptable config\n");
-		fprintf(stderr, "command to remove hook (maybe truncated): %s\n", cmd);
-	}
-
-	/* ipv6 output */
-	if (!strcasecmp(pp_ctx->packet_source, "all")) {
-		strcpy(cmd, "ip6tables -D OUTPUT -j NFQUEUE --queue-num 0 --queue-bypass");
-		rc = system(cmd);
-	} else {
-		if (100 >= snprintf(cmd, 100, "ip6tables -D OUTPUT -o %s -j NFQUEUE --queue-num 0 --queue-bypass", pp_ctx->packet_source)) {
-			rc = system(cmd);
-		} else {
-			rc = 1;
-		}
-	}
-
-	if (rc) {
-		fprintf(stderr, "failed to remove hook from netfilter - please check your iptable config\n");
-		fprintf(stderr, "command to remove hook (maybe truncated): %s\n", cmd);
-	}
 
 	if (pp_ctx->nf_handle) {
 		if (pp_ctx->nf_queue_handle) {
