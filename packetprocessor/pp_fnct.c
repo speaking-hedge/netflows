@@ -529,6 +529,11 @@ static int __pp_netfilter_callback(struct nfq_q_handle *qh,
 	struct timeval ts;
 	enum PP_ANALYZER_ACTION req_action = 0;
 
+	/* if the packet traverses the machine do not handle it a second time */
+	if (PP_NETFILTER_PACKET_MARK == nfq_get_nfmark(nfa)) {
+		return nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
+	}
+
 	ph = nfq_get_msg_packet_hdr(nfa);
     if (ph) {
         id = ntohl(ph->packet_id);
@@ -546,16 +551,16 @@ static int __pp_netfilter_callback(struct nfq_q_handle *qh,
 
 	if (req_action & PP_ANALYZER_ACTION_ERROR) {
 		if (PP_DROP_PACKET_ON_ERROR) {
-			return nfq_set_verdict(qh, id, NF_DROP, 0, NULL);
+			return nfq_set_verdict2(qh, id, NF_DROP, PP_NETFILTER_PACKET_MARK, 0, NULL);
 		} else {
-			return nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
+			return nfq_set_verdict2(qh, id, NF_ACCEPT, PP_NETFILTER_PACKET_MARK, 0, NULL);
 		}
 	}
 
 	if (req_action & PP_ANALYZER_ACTION_DROP) {
-		return nfq_set_verdict(qh, id, NF_DROP, 0, NULL);
+		return nfq_set_verdict2(qh, id, NF_DROP, PP_NETFILTER_PACKET_MARK, 0, NULL);
 	}
-	return nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
+	return nfq_set_verdict2(qh, id, NF_ACCEPT, PP_NETFILTER_PACKET_MARK, 0, NULL);
 }
 
 /**

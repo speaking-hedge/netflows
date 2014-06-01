@@ -18,6 +18,8 @@
 #include <pp_context.h>
 #include <pp_ndpi.h>
 
+#define PP_NETFILTER_PACKET_MARK	0x2342
+
 extern int ppoll(struct pollfd *fds, nfds_t nfds, const struct timespec *timeout_ts, const sigset_t *sigmask);
 
 int pp_ctx_init(struct pp_context *pp_ctx, enum PP_ANALYZER_ACTION (*packet_handler)(struct pp_context *pp_ctx, enum PP_OSI_LAYERS first_layer, uint8_t *data, uint16_t len, uint64_t timestamp));
