@@ -14,6 +14,7 @@
 #include <pp_ndpi.h>
 
 #include <pp_window_size.h>
+#include <pp_bandwidth.h>
 
 
 #define PPVERSION "0.1"

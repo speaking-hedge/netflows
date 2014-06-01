@@ -587,7 +587,7 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_context *pp_ctx) {
 		{"dump-flows", 0, NULL, 'F'},
 		{"dump-table-stats", 0, NULL, 'T'},
 		{"dump-packet-processor-stats", 0, NULL, 'p'},
-		{"analyze-window-size",0 , NULL, 'w'},
+		{"window-size-analyzer",0 , NULL, 'w'},
 		{"analyze-infinity", 0, NULL, 'i'},
 		{"analyze-timespan", required_argument, NULL, 't'},
 		{"analyze-num-packets", required_argument, NULL, 'n'},
@@ -596,13 +596,14 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_context *pp_ctx) {
 		{"list-ndpi-protocols", 0, NULL, 'L'},
 		{"dump-ndpi-stats", 0, NULL, 'N'},
 		{"live-analyze-nf", optional_argument, NULL, 'z'},
+		{"bandwidth-analyzer", 0, NULL, 'b'},
 		{NULL, 0, NULL, 0}
 	};
 	int opt = 0, i = 0;
 	char *endptr = NULL;
 
 	while(1) {
-		opt = getopt_long(argc, argv, "hva:l:c:o:jf:J:r::PFTpwit:n:g::DLNz::", options, NULL);
+		opt = getopt_long(argc, argv, "hva:l:c:o:jf:J:r::PFTpwit:n:g::DLNz::b", options, NULL);
 		if (opt == -1)
 			break;
 
@@ -748,6 +749,17 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_context *pp_ctx) {
 				pp_ctx->processing_options |= PP_PROC_OPT_USE_NDPI;
 				pp_ctx->processing_options |= PP_PROC_OPT_DUMP_NDPI_STATS;
 				break;
+			case 'b':
+				pp_analyzer_register(&pp_ctx->analyzers,
+									 &pp_bandwidth_inspect,
+									 &pp_bandwidth_analyze,
+									 &pp_bandwidth_report,
+									 &pp_bandwidth_describe,
+									 &pp_bandwidth_init,
+									 &pp_bandwidth_destroy,
+									 NULL);
+				pp_ctx->analyzer_num++;
+				break;
 			default:
 				abort();
 		}
@@ -892,6 +904,9 @@ void pp_usage(void) {
 	printf("                               packets can be blocked by analyzers\n");
 	printf("-f --bp-filter <bpf>           set Berkeley Packet Filter by given\n");
 	printf("                               string (you may quote the string)\n");
+	printf("\n");
+	printf("-w --window-size-analyzer      analyze window size of detected flows\n");
+	printf("-b --bandwidth-analyzer        analyze used bandwidth of dectected flows\n");
 	printf("\n");
 	printf("-v --version                   show program version\n");
 	printf("-h --help                      show help\n");
