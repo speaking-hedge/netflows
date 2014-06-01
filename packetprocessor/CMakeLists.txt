@@ -1,5 +1,6 @@
 set(LIBPCAP_SRC libpcap-1.5.3)
 set(NDPI_SRC nDPI)
+set(JANSSON_SRC jansson)
 EXECUTE_PROCESS(COMMAND sh -c "git describe --abbrev=6 --dirty --always | tr -d '\n'" OUTPUT_VARIABLE GIT_SHA)
 
 # build libpcap.a if needed
@@ -20,6 +21,16 @@ EXTERNALPROJECT_ADD(libndpi.a
 	INSTALL_COMMAND sh -c "cp ${CMAKE_CURRENT_BINARY_DIR}/libndpi.a-prefix/src/libndpi.a-build/src/lib/.libs/libndpi.a ${CMAKE_CURRENT_BINARY_DIR}"
 )
 INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/contrib/${NDPI_SRC}/src/include)
+
+# build jansson if needed
+EXTERNALPROJECT_ADD(jansson.a
+	URL ${PROJECT_SOURCE_DIR}/contrib/${JANSSON_SRC}/
+	CONFIGURE_COMMAND cmake -DJANSSON_BUILD_DOCS=OFF ${PROJECT_SOURCE_DIR}/contrib/${JANSSON_SRC}/
+	BUILD_COMMAND make -C ${PROJECT_SOURCE_DIR}/contrib/${JANSSON_SRC}/
+	INSTALL_COMMAND sh -c "cp ${PROJECT_SOURCE_DIR}/contrib/${JANSSON_SRC}/lib/libjansson.a ${CMAKE_CURRENT_BINARY_DIR}"
+)
+INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/contrib/${JANSSON_SRC}/src/include)
+
 
 # build packet processor
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/)
