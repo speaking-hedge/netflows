@@ -36,9 +36,6 @@ static size_t __answer_parser( char *ptr, size_t size, size_t nmemb, void *userd
 	if(!root)
 	{
 		fprintf(stderr, "REST response JSON error: on line %d: %s\n", error.line, error.text);
-#ifdef PP_DEBUG
-		fprintf(stderr, "Content: %s\n", ptr);
-#endif
 		*(char *)userdata = 1; // maybe change this to error message
 	}
 
@@ -74,9 +71,6 @@ static int __pp_rest_send(const char* url) {
 	/* set url */
 	curl_easy_setopt(rest, CURLOPT_URL, url);
 
-#ifdef PP_DEBUG
-	printf("REST send: %s\n", url);
-#endif
 	curl_easy_setopt(rest, CURLOPT_WRITEFUNCTION, __answer_parser);
 	curl_easy_setopt(rest, CURLOPT_WRITEDATA, &error);
 
@@ -117,10 +111,6 @@ static int __rest_post(const char* url, const char *data)
 	struct ReadMessage msg;
 	msg.readptr = data;
 	msg.sizeleft = (long)strlen(data);
-
-#ifdef PP_DEBUG
-	printf("REST post: %s %s\n", url, data);
-#endif
 
 	/* set url */
 	curl_easy_setopt(rest, CURLOPT_URL, url);
@@ -292,7 +282,7 @@ int pp_rest_job_state(const char* url, const char* job_hash, enum RestJobState s
  * @retval 1 on error
  */
 int pp_rest_post_analyze_data(const char* url, const char* job_hash, uint32_t analyzer_id, uint32_t flow_id, int sample_id, const char* data) {
-	char *suffix = "/accessresults/addresult";
+	char *suffix = "/accessresults/addresult?";
 	char *param_jobid="job_id=";
 	char *param_flowid="&flow_id=";
 	char *param_analyzer_id="&analyzer_id=";
@@ -330,47 +320,4 @@ int pp_rest_post_analyze_data(const char* url, const char* job_hash, uint32_t an
 
 	return __rest_post(post_url, post_data);
 
-}
-
-/*accesanalyzers/registeranalyzer
-@param name          (MANDATORY) the analyzer name
-@param cmd_flag      (MANDATORY) the flag that will be used by the packet-processor to identify this analyzer
-@param description   a brief description of the job
-@param isactive      determines wheter the analyzer is available */
-
-/**
- * @brief register analyzer
- * @param url to connect to
- * @retval 0 on success
- * @retval 1 on error
- */
-int pp_rest_reg_analyzer(const char* url, int idx, const char* description) {
-	char *suffix = "/accessanalysers/registeranalyzer"; //TODO: analySers?
-	char *param_name="name=";
-	char *param_cmdflag="&cmd_flag=0";
-	char *param_description="&description=";
-	char *param_isactive="&isactive=1";
-
-	char post_url[strlen(url) + strlen(suffix) + 1];
-	strcpy(post_url, url);
-	strcat(post_url, suffix);
-
-	char name_str[6];
-	sprintf(name_str, "%d", idx);
-
-	char post_data[
-		strlen(param_name) + strlen(name_str) +
-		strlen(param_cmdflag) + 
-		strlen(param_description) + strlen(description) +
-		strlen(param_isactive) + 
-		1
-	];
-	strcpy(post_data, param_name);
-	strcat(post_data, name_str);
-	strcat(post_data, param_cmdflag);
-	strcat(post_data, param_description);
-	strcat(post_data, description);
-	strcat(post_data, param_isactive);
-
-	return __rest_post(post_url, post_data);
 }
