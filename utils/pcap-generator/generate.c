@@ -64,15 +64,11 @@ void write_layer3_ip4(FILE *file, size_t len)
 void write_layer4_tcp(FILE *file)
 {
 	struct tcphdr layer4;
-	layer4.th_sport = htons(80);
-	layer4.th_dport = htons(80);
-	layer4.th_seq = 0;
-	layer4.th_ack = 0;
-	layer4.th_off = 5;
-	layer4.th_flags = 0;
-	layer4.th_win = 1;
-	layer4.th_sum = 0; // who cares!
-	layer4.th_urp = 0; // urgent... as if
+	memset(&layer4, 0, sizeof(struct tcphdr));
+	layer4.source = htons(80);
+	layer4.dest = htons(80);
+	layer4.doff = 5;
+	layer4.window = 1;
 	fwrite(&layer4, sizeof(struct tcphdr), 1, file);
 }
 
