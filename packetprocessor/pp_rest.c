@@ -154,7 +154,7 @@ static int __rest_post(const char* url, const char *data)
  */
 int pp_rest_add_flow(const char* url, const char* job_hash, const struct pp_flow* flow) {
 	char *suffix = "/accessflows/insertflow?";
-	char *param_id = "id="; // BUG: flow-id is not unique between jobs. Change DB to primary key ID & JOB_ID ?
+	char *param_id = "id=";
 	char *param_jobid = "&job_id=";
 	char *param_endpt_a_ip = "&endpt_a_ip=";
 	char *param_endpt_b_ip = "&endpt_b_ip=";
@@ -282,7 +282,7 @@ int pp_rest_job_state(const char* url, const char* job_hash, enum RestJobState s
  * @retval 1 on error
  */
 int pp_rest_post_analyze_data(const char* url, const char* job_hash, uint32_t analyzer_id, uint32_t flow_id, int sample_id, const char* data) {
-	char *suffix = "/accessresults/addresult?";
+	char *suffix = "/accessresults/addresult";
 	char *param_jobid="job_id=";
 	char *param_flowid="&flow_id=";
 	char *param_analyzer_id="&analyzer_id=";
