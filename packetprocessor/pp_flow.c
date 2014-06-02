@@ -152,6 +152,7 @@ struct pp_flow* pp_flow_construct(struct pp_packet_context *pkt_ctx) {
 	pthread_mutex_init(&flow->lock, NULL);
 	memcpy(flow->protocols, pkt_ctx->protocols, sizeof(pkt_ctx->protocols));
 
+	flow->ep_a.ip.version = pkt_ctx->protocols[PP_OSI_LAYER_3] == ETH_P_IP?4:6;
 	flow->ep_a.ip.addr.v6 = pkt_ctx->src_addr.v6;
 	flow->ep_b.ip.addr.v6 = pkt_ctx->dst_addr.v6;
 
