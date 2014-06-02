@@ -50,6 +50,15 @@ int main(int argc, char **argv) {
 	}
 
 	if (pp_ctx.processing_options & PP_PROC_OPT_USE_REST) {
+		// register analyzers (TODO: just upload on set flag)
+
+		int a = 0;
+
+		for (a = 0; a < pp_ctx.analyzer_num; a++) {
+			pp_rest_reg_analyzer(pp_ctx.rest_backend_url, pp_ctx.analyzers[a].idx, pp_ctx.analyzers[a].describe(NULL)); // TODO: Why do we need a flow as an argument?
+			// BUG: segfault if multiple analyzers are active ?
+		}
+		
 		if (pp_ctx.job_id == NULL) {
 			fprintf(stderr,"REST requires job-id.\n");
 			return 1; // Or maybe just generate a new ID
@@ -214,7 +223,6 @@ static void* __pp_report_thread(void *arg) {
 					while (analyzer) {
 
 						if (analyzer->report) {
-
 							if (analyzer->analyze) {
 								analyzer->analyze(analyzer->idx, flow);
 							}

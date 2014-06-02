@@ -26,5 +26,6 @@ int pp_rest_job_state(const char* url, const char* job_hash, enum RestJobState s
 int pp_rest_job_state_msg(const char* url, const char* job_hash, enum RestJobState state, char* error);
 int pp_rest_post_analyze_data(const char* url, const char* job_hash, uint32_t analyzer_id, uint32_t flow_id, int sample_id, const char* data);
 int pp_rest_add_flow(const char* url, const char* job_hash, const struct pp_flow* flow);
+int pp_rest_reg_analyzer(const char* url, int idx, const char* description);
 
 #endif /* __PP_REST */
