@@ -1,6 +1,6 @@
 #!/bin/bash
 # build the project and copy the files to the mapped folders
-build_dir="../build/"
+build_dir="../../build/"
 build_pp_dir="${build_dir}/packetprocessor"
 build_pp_bin="${build_pp_dir}/packet-processor-static"
 

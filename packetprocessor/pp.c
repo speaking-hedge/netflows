@@ -609,7 +609,7 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_context *pp_ctx) {
 	char *endptr = NULL;
 
 	while(1) {
-		opt = getopt_long(argc, argv, "hva:l:c:o:jf:J:r::PFTpwit:n:g::DLNz::b", options, NULL);
+		opt = getopt_long(argc, argv, "hva:l:c:o:jf:J:r::PFTpwqit:n:g::DLNz::b", options, NULL);
 		if (opt == -1)
 			break;
 
@@ -701,7 +701,7 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_context *pp_ctx) {
 				break;
 			case 'w': /* analyze window size */
 				pp_analyzer_register(&pp_ctx->analyzers,
-									 &pp_window_size_collect,
+									 &pp_window_size_inspect,
 									 &pp_window_size_analyze,
 									 &pp_window_size_report,
 									 &pp_window_size_describe,
@@ -710,6 +710,18 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_context *pp_ctx) {
 									 NULL);
 				pp_ctx->analyzer_num++;
 				break;
+
+			 case 'q': /* analyze round trip time */
+				pp_analyzer_register(&pp_ctx->analyzers,
+					             &pp_rtt_inspect,
+					             &pp_rtt_analyze,
+					             &pp_rtt_report,
+					             &pp_rtt_describe,
+					             &pp_rtt_init,
+					             &pp_rtt_destroy,
+					                 NULL);
+				pp_ctx->analyzer_num++;
+			break;
 			case 'i':
 				pp_ctx->analyzer_mode = PP_ANALYZER_MODE_INFINITY;
 				break;

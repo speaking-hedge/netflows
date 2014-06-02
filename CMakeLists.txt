@@ -23,7 +23,7 @@ execute_process(COMMAND sh -c "lsb_release -r | grep 14.04 | wc -l" OUTPUT_VARIA
 if ( 1 EQUAL ${IS_UBUNTU_14.04})
 	set(PROJECT_LINK_DEPENDENCIES pcap cap gcrypt rt pthread curl m ncurses libndpi nfnetlink netfilter_queue libjansson ${GENERATED_LIBS})
 else()
-	set(PROJECT_LINK_DEPENDENCIES pcap cap gcrypt rt dbus-1 pthread curl m ncurses libndpi nfnetlink netfilter_queue libjansson ${GENERATED_LIBS})
+	set(PROJECT_LINK_DEPENDENCIES usb-1.0 pcap cap gcrypt rt dbus-1 pthread curl m ncurses libndpi nfnetlink netfilter_queue libjansson ${GENERATED_LIBS})
 endif()
 macro (build_check_tests)
 

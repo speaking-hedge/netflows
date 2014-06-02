@@ -76,6 +76,9 @@ struct pp_packet_context {
 			uint16_t syn:1;
 			uint16_t rst:1;
 			uint16_t ack:1;
+	                uint16_t hl;
+	                uint32_t ack_num;
+	                uint32_t seq_num;
 		} tcp;
 	} l4_meta;
 

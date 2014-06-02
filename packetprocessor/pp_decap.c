@@ -245,6 +245,9 @@ static int __pp_decap_l4(uint32_t protocol, size_t *len, uint32_t *offset, struc
 		pkt_ctx->l4_meta.tcp.syn = tcp_hdr->syn;
 		pkt_ctx->l4_meta.tcp.rst = tcp_hdr->rst;
 		pkt_ctx->l4_meta.tcp.ack = tcp_hdr->ack;
+	        pkt_ctx->l4_meta.tcp.ack_num = htonl(tcp_hdr->ack_seq);
+	        pkt_ctx->l4_meta.tcp.seq_num = htonl(tcp_hdr->seq);
+	        pkt_ctx->l4_meta.tcp.hl      = tcp_hdr->doff*4;
 		pkt_ctx->src_port = htons(tcp_hdr->source);
 		pkt_ctx->dst_port = htons(tcp_hdr->dest);
 
