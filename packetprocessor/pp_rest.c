@@ -145,6 +145,74 @@ static int __rest_post(const char* url, const char *data)
 }
 
 /**
+ * @brief add flow to DB
+ * @param url to connect to
+ * @param job_hash id of the job
+ * @param flow to be put on data
+ * @retval 0 on success
+ * @retval 1 on error
+ */
+int pp_rest_add_flow(const char* url, const char* job_hash, const struct pp_flow* flow) {
+	char *suffix = "/accessflows/insertflow?";
+	char *param_id = "id="; // BUG: flow-id is not unique between jobs. Change DB to primary key ID & JOB_ID ?
+	char *param_jobid = "&job_id=";
+	char *param_endpt_a_ip = "&endpt_a_ip=";
+	char *param_endpt_b_ip = "&endpt_b_ip=";
+	char *param_endpt_a_port = "&endpt_a_port=";
+	char *param_endpt_b_port = "&endpt_b_port=";
+
+	char id_str[11];
+	sprintf(id_str, "%d", flow->id);
+
+	char endpt_a_port[6];
+	sprintf(endpt_a_port, "%d", flow->ep_a.port);
+
+	char endpt_b_port[6];
+	sprintf(endpt_b_port, "%d", flow->ep_b.port);
+
+	char endpt_a_ip[INET6_ADDRSTRLEN];
+	if (flow->ep_a.ip.version == ETH_P_IPV6) { // BUG: version is always 0
+		inet_ntop(AF_INET6, &(flow->ep_a.ip.addr.v6), endpt_a_ip, INET6_ADDRSTRLEN);
+	} else {
+		inet_ntop(AF_INET, &(flow->ep_a.ip.addr.v4), endpt_a_ip, INET_ADDRSTRLEN);
+	}
+
+	char endpt_b_ip[INET6_ADDRSTRLEN];
+	if (flow->ep_b.ip.version == ETH_P_IPV6) {
+		inet_ntop(AF_INET6, &(flow->ep_b.ip.addr.v6), endpt_b_ip, INET6_ADDRSTRLEN);
+	} else {
+		inet_ntop(AF_INET, &(flow->ep_b.ip.addr.v4), endpt_b_ip, INET_ADDRSTRLEN);
+	}
+
+	char msg[
+		strlen(url) + strlen(suffix) +
+		strlen(param_id) + strlen(id_str) +
+		strlen(param_jobid) + strlen(job_hash) +
+		strlen(param_endpt_a_ip) + strlen(endpt_a_ip) +
+		strlen(param_endpt_b_ip) + strlen(endpt_b_ip) +
+		strlen(param_endpt_a_port) + strlen(endpt_a_port) +
+		strlen(param_endpt_b_port) + strlen(endpt_b_port) +
+		1];
+
+	strcpy(msg, url);
+	strcat(msg, suffix);
+	strcat(msg, param_id);
+	strcat(msg, id_str);
+	strcat(msg, param_jobid);
+	strcat(msg, job_hash);
+	strcat(msg, param_endpt_a_ip);
+	strcat(msg, endpt_a_ip);
+	strcat(msg, param_endpt_a_port);
+	strcat(msg, endpt_a_port);
+	strcat(msg, param_endpt_b_ip);
+	strcat(msg, endpt_b_ip);
+	strcat(msg, param_endpt_b_port);
+	strcat(msg, endpt_b_port);
+
+	return __pp_rest_send(msg);
+}
+
+/**
  * @brief set job state to running
  * @param url to connect to
  * @param job_hash id of the job
@@ -214,7 +282,7 @@ int pp_rest_job_state(const char* url, const char* job_hash, enum RestJobState s
  * @retval 1 on error
  */
 int pp_rest_post_analyze_data(const char* url, const char* job_hash, uint32_t analyzer_id, uint32_t flow_id, int sample_id, const char* data) {
-	char *suffix = "/accessresults/addresult";
+	char *suffix = "/accessresults/addresult?";
 	char *param_jobid="job_id=";
 	char *param_flowid="&flow_id=";
 	char *param_analyzer_id="&analyzer_id=";
@@ -225,11 +293,11 @@ int pp_rest_post_analyze_data(const char* url, const char* job_hash, uint32_t an
 	strcpy(post_url, url);
 	strcat(post_url, suffix);
 
-	char flow_id_str[10];
+	char flow_id_str[11];
 	sprintf(flow_id_str, "%d", flow_id);
-	char sample_id_str[10];
+	char sample_id_str[11];
 	sprintf(sample_id_str, "%d", sample_id);
-	char analyzer_id_str[3];
+	char analyzer_id_str[4];
 	sprintf(analyzer_id_str, "%d", analyzer_id);
 	
 	char post_data[

@@ -200,6 +200,12 @@ static void* __pp_report_thread(void *arg) {
 		for (b = 0; b < pp_ctx->flow_table->size; b++) {
 			if (pp_ctx->flow_table->buckets[b] != NULL) {
 				flow = pp_ctx->flow_table->buckets[b];
+
+				// add flow via REST (in the report thread to avoid blocking)
+				if (pp_ctx->processing_options & PP_PROC_OPT_USE_REST && pp_ctx->job_id) {
+					pp_rest_add_flow(pp_ctx->rest_backend_url, pp_ctx->job_id, flow);
+				}
+
 				do {
 
 					pthread_mutex_lock(&flow->lock);
