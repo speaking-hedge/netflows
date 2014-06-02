@@ -22,8 +22,20 @@ int pp_analyzer_register(struct pp_analyzer **analyzer_list,
 						 uint32_t (*id)(void),
 						 void *usr_ptr) {
 
-	struct pp_analyzer *new_analyzer = NULL;
+	struct pp_analyzer *new_analyzer = NULL, *cur = NULL;
 	static int analyzer_idx = 0;
+
+	if (*analyzer_list) {
+
+		cur = *analyzer_list;
+
+		while(cur) {
+			if (cur->id() == id()) {
+				return 0;
+			}
+			cur = cur->next_analyzer;
+		}
+	}
 
 	if (!(new_analyzer = malloc(sizeof(struct pp_analyzer)))) {
 		return 1;
@@ -36,7 +48,7 @@ int pp_analyzer_register(struct pp_analyzer **analyzer_list,
 	new_analyzer->init = init;
 	new_analyzer->destroy = destroy;
 	new_analyzer->id = id;
-	
+
 	new_analyzer->next_analyzer = NULL;
 	new_analyzer->idx = analyzer_idx++;
 
