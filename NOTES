@@ -14,7 +14,7 @@ libncurses / libncurses-dev
 libnfnetlink
 ubuntu: sudo apt-get install libnfnetlink0 libnfnetlink-dev
 
-libnetfilter_queue
+libnetfilter_queue >= version 1.0.0
 ubuntu: sudo apt-get install libnetfilter-queue1 libnetfilter-queue-dev
 
 during development
