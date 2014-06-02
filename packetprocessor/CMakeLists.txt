@@ -26,11 +26,10 @@ INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/contrib/${NDPI_SRC}/src/include)
 EXTERNALPROJECT_ADD(jansson.a
 	URL ${PROJECT_SOURCE_DIR}/contrib/${JANSSON_SRC}/
 	CONFIGURE_COMMAND cmake -DJANSSON_BUILD_DOCS=OFF ${PROJECT_SOURCE_DIR}/contrib/${JANSSON_SRC}/
-	BUILD_COMMAND make -C ${PROJECT_SOURCE_DIR}/contrib/${JANSSON_SRC}/
-	INSTALL_COMMAND sh -c "cp ${PROJECT_SOURCE_DIR}/contrib/${JANSSON_SRC}/lib/libjansson.a ${CMAKE_CURRENT_BINARY_DIR}"
+	BUILD_COMMAND make -C ${CMAKE_CURRENT_BINARY_DIR}/jansson.a-prefix/src/jansson.a-build/
+	INSTALL_COMMAND sh -c "cp ${CMAKE_CURRENT_BINARY_DIR}/jansson.a-prefix/src/jansson.a-build/lib/libjansson.a ${CMAKE_CURRENT_BINARY_DIR}"
 )
-INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/contrib/${JANSSON_SRC}/src/include)
-
+INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR}/jansson.a-prefix/src/jansson.a-build/include)
 
 # build packet processor
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/)
