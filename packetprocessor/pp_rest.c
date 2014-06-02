@@ -36,6 +36,9 @@ static size_t __answer_parser( char *ptr, size_t size, size_t nmemb, void *userd
 	if(!root)
 	{
 		fprintf(stderr, "REST response JSON error: on line %d: %s\n", error.line, error.text);
+#ifdef PP_DEBUG
+		fprintf(stderr, "Content: %s\n", ptr);
+#endif
 		*(char *)userdata = 1; // maybe change this to error message
 	}
 
@@ -70,6 +73,10 @@ static int __pp_rest_send(const char* url) {
 
 	/* set url */
 	curl_easy_setopt(rest, CURLOPT_URL, url);
+
+#ifdef PP_DEBUG
+	printf("REST send: %s\n", url);
+#endif
 
 	curl_easy_setopt(rest, CURLOPT_WRITEFUNCTION, __answer_parser);
 	curl_easy_setopt(rest, CURLOPT_WRITEDATA, &error);
@@ -111,6 +118,10 @@ static int __rest_post(const char* url, const char *data)
 	struct ReadMessage msg;
 	msg.readptr = data;
 	msg.sizeleft = (long)strlen(data);
+
+#ifdef PP_DEBUG
+	printf("REST post: %s %s\n", url, data);
+#endif
 
 	/* set url */
 	curl_easy_setopt(rest, CURLOPT_URL, url);

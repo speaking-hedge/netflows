@@ -225,7 +225,7 @@ static void* __pp_report_thread(void *arg) {
 								if (pp_ctx->processing_options & PP_PROC_OPT_USE_REST && pp_ctx->job_id) {
 									if (pp_rest_post_analyze_data(pp_ctx->rest_backend_url,
 									                              pp_ctx->job_id,
-									                              analyzer->idx, // TODO: is this right?
+									                              analyzer->id(),
 									                              flow->id,
 									                              sample_id,
 									                              report_data)) {
@@ -966,11 +966,9 @@ void pp_usage(void) {
  */
 static int __pp_abort(struct pp_context *pp_ctx, char* msg) {
 	fprintf(stderr, "%s", msg);
-	if (pp_ctx->processing_options & PP_PROC_OPT_USE_REST) { // TODO: Check only once
-		if (pp_rest_job_state_msg(pp_ctx->rest_backend_url, pp_ctx->job_id, JOB_STATE_INTERNAL_ERROR, msg)) {
-			fprintf(stderr, "REST communication error.\n");
-			return 1;
-		}
+	if (pp_rest_job_state_msg(pp_ctx->rest_backend_url, pp_ctx->job_id, JOB_STATE_INTERNAL_ERROR, msg)) {
+		fprintf(stderr, "REST communication error.\n");
+		return 1;
 	}
 	return 1;
 }
