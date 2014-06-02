@@ -4,6 +4,9 @@
 #include <pp_analyzer.h>
 #include <pp_flow.h>
 
+/* unique database id */
+#define PP_BANDWIDTH_ANALYZER_DB_ID 1
+
 /* number of statistic entries we need to generate a reliable report */
 #define BANDWIDTH_ANALYZER_MIN_SAMPLE_COUNT	1
 
@@ -49,5 +52,6 @@ char* pp_bandwidth_report(uint32_t idx, struct pp_flow *flow_ctx);
 char* pp_bandwidth_describe(struct pp_flow *flow_ctx);
 void pp_bandwidth_init(uint32_t idx, struct pp_flow *flow_ctx, enum PP_ANALYZER_MODES mode, uint32_t mode_val);
 void pp_bandwidth_destroy(uint32_t idx, struct pp_flow *flow_ctx);
+uint32_t pp_bandwidth_id(void);
 
 #endif /* __PP_BANDWIDTH */

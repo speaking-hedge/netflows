@@ -17,6 +17,12 @@ ubuntu: sudo apt-get install libnfnetlink0 libnfnetlink-dev
 libnetfilter_queue >= version 1.0.0
 ubuntu: sudo apt-get install libnetfilter-queue1 libnetfilter-queue-dev
 
+analyter database ids
+---------------------
+
+PP_BANDWIDTH_ANALYZER_DB_ID 	1
+PP_WINDOW_SIZE_ANALYZER_DB_ID	2
+
 during development
 ------------------
 

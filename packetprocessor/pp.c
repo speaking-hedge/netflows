@@ -707,6 +707,7 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_context *pp_ctx) {
 									 &pp_window_size_describe,
 									 &pp_window_size_init,
 									 &pp_window_size_destroy,
+									 &pp_window_size_id,
 									 NULL);
 				pp_ctx->analyzer_num++;
 				break;
@@ -775,6 +776,7 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_context *pp_ctx) {
 									 &pp_bandwidth_describe,
 									 &pp_bandwidth_init,
 									 &pp_bandwidth_destroy,
+									 &pp_bandwidth_id,
 									 NULL);
 				pp_ctx->analyzer_num++;
 				break;

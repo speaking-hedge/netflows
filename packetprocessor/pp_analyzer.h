@@ -4,6 +4,7 @@
 #include <pp_decap.h>
 #include <pp_flow.h>
 
+
 /**
  * each analyzer is invoked on each packet
  *
@@ -79,6 +80,9 @@ struct pp_analyzer {
 	 * invoked by: on exit by the packet prozessor
 	 * */
 	void (*destroy)(uint32_t idx,struct pp_flow *flow_ctx);
+	
+	/* returns the database id of the analyzer */
+	uint32_t (*id)(void);
 
 	/* holds analyzer specific data */
 	void *usr_ptr;
@@ -94,6 +98,7 @@ int pp_analyzer_register(struct pp_analyzer **analyzer_list,
 						 char* (*describe)(struct pp_flow *flow_ctx),
 						 void (*init)(uint32_t idx, struct pp_flow *flow_ctx, enum PP_ANALYZER_MODES mode, uint32_t mode_val),
 						 void (*destroy)(uint32_t idx, struct pp_flow *flow_ctx),
+						 uint32_t (*id)(void),
 						 void *usr_ptr);
 
 /**************************************************************/

@@ -1,6 +1,9 @@
 #include <pp_analyzer.h>
 #include <pp_flow.h>
 
+/* unique database id */
+#define PP_WINDOW_SIZE_ANALYZER_DB_ID	2
+
 /* number of statistic entries we need to generate a reliable report */
 #define WINDOWS_SIZE_ANALYZER_MIN_SAMPLE_COUNT  100
 
@@ -27,3 +30,4 @@ char* pp_window_size_report(uint32_t idx, struct pp_flow *flow_ctx);
 char* pp_window_size_describe(struct pp_flow *flow_ctx);
 void pp_window_size_init(uint32_t idx, struct pp_flow *flow_ctx, enum PP_ANALYZER_MODES mode, uint32_t mode_val);
 void pp_window_size_destroy(uint32_t idx, struct pp_flow *flow_ctx);
+uint32_t pp_window_size_id(void);

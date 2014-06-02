@@ -19,6 +19,7 @@ int pp_analyzer_register(struct pp_analyzer **analyzer_list,
 						 char* (*describe)(struct pp_flow *flow_ctx),
 						 void (*init)(uint32_t idx, struct pp_flow *flow_ctx, enum PP_ANALYZER_MODES mode, uint32_t mode_val),
 						 void (*destroy)(uint32_t idx, struct pp_flow *flow_ctx),
+						 uint32_t (*id)(void),
 						 void *usr_ptr) {
 
 	struct pp_analyzer *new_analyzer = NULL;
@@ -34,6 +35,8 @@ int pp_analyzer_register(struct pp_analyzer **analyzer_list,
 	new_analyzer->describe = describe;
 	new_analyzer->init = init;
 	new_analyzer->destroy = destroy;
+	new_analyzer->id = id;
+	
 	new_analyzer->next_analyzer = NULL;
 	new_analyzer->idx = analyzer_idx++;
 
