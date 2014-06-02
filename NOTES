@@ -22,6 +22,7 @@ analyter database ids
 
 PP_BANDWIDTH_ANALYZER_DB_ID 	1
 PP_WINDOW_SIZE_ANALYZER_DB_ID	2
+PP_RTT_ANALYZER_DB_ID			3
 
 during development
 ------------------

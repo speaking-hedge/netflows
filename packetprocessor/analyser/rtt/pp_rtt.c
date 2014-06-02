@@ -422,3 +422,9 @@ void pp_rtt_destroy(uint32_t idx, struct pp_flow *flow_ctx) {
     /* free analyzer data */
     pp_analyzer_storage_destroy(idx, flow_ctx);
 }
+
+
+/* return unique analyzer db id */
+uint32_t pp_rtt_id(void) {
+	return PP_RTT_ANALYZER_DB_ID;
+}

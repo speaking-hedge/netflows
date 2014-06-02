@@ -603,6 +603,7 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_context *pp_ctx) {
 		{"dump-ndpi-stats", 0, NULL, 'N'},
 		{"live-analyze-nf", optional_argument, NULL, 'z'},
 		{"bandwidth-analyzer", 0, NULL, 'b'},
+		{"rtt-analyzer", 0, NULL, 'q'},
 		{NULL, 0, NULL, 0}
 	};
 	int opt = 0, i = 0;
@@ -720,6 +721,7 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_context *pp_ctx) {
 					             &pp_rtt_describe,
 					             &pp_rtt_init,
 					             &pp_rtt_destroy,
+					             &pp_rtt_id,
 					                 NULL);
 				pp_ctx->analyzer_num++;
 			break;
@@ -927,6 +929,7 @@ void pp_usage(void) {
 	printf("\n");
 	printf("-w --window-size-analyzer      analyze window size of detected flows\n");
 	printf("-b --bandwidth-analyzer        analyze used bandwidth of dectected flows\n");
+	printf("-q --rtt-analyzer              analyze round trip time\n");
 	printf("\n");
 	printf("-v --version                   show program version\n");
 	printf("-h --help                      show help\n");

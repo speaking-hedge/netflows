@@ -2,6 +2,9 @@
 #include <pp_flow.h>
 //#include <queue.h>
 
+/* unique database id */
+#define PP_RTT_ANALYZER_DB_ID			3
+
 /* number of statistic entries we need to generate a reliable report */
 #define RTT_ANALYZER_MIN_SAMPLE_COUNT   1
 
@@ -66,3 +69,4 @@ void pp_rtt_destroy(uint32_t idx, struct pp_flow *flow_ctx);
 inline void report_new_rtt(uint64_t _rtt, uint64_t _ts, int _direction);
 inline void add_new_package(uint32_t _seq,uint32_t _ack,uint16_t _syn,uint16_t _length,uint64_t _timestamp,int _direction);
 inline packet_type check_package_type(struct __pp_rtt_data *rtt_data);
+uint32_t pp_rtt_id(void);
