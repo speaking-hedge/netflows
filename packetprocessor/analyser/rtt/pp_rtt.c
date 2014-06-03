@@ -4,6 +4,7 @@
 
 enum PP_ANALYZER_ACTION pp_rtt_inspect(uint32_t idx, struct pp_packet_context *pkt_ctx, struct pp_flow *flow_ctx) {
 
+    /* rtt will only be measured for packets belonging to a TCP connection */
     if(pkt_ctx->protocols[PP_OSI_LAYER_4] == IPPROTO_TCP)
     {
         struct __pp_rtt_data *data = pp_analyzer_storage_get_next_location(idx, pkt_ctx, flow_ctx);
@@ -17,7 +18,6 @@ enum PP_ANALYZER_ACTION pp_rtt_inspect(uint32_t idx, struct pp_packet_context *p
             data->size     = pkt_ctx->length - (pkt_ctx->l4_meta.tcp.hl + pkt_ctx->offsets[PP_OSI_LAYER_4]);
         }
     }
-    else printf("dropped!");
     return PP_ANALYZER_ACTION_NONE;
 }
 /**
@@ -31,55 +31,59 @@ static void __pp_rtt_analyze(void *data, uint64_t ts, int direction) {
     struct __pp_rtt_data *rtt_data      = data;
     static uint32_t initial_seq_no_up   = 0;
     static uint32_t initial_seq_no_down = 0;
-    static uint32_t current_ack_up      = 0;
-    static uint32_t current_ack_down    = 0;
     static struct __packet sin_packet;
     static struct __packet fin_packet;
 
     uint32_t current_seq = 0;
+    uint32_t current_ack_up      = 0;
+    uint32_t current_ack_down    = 0;
 
     packet_type type = check_package_type(rtt_data);
 
     switch(type)
     {
         case PKT_SYN:
+        {
+            /* handle connection establishment / handshake */
+            init_seq_number(&initial_seq_no_up, &initial_seq_no_down, direction, rtt_data);
+
+            sin_packet.timestamp = ts;
+        }
+        break;
+
         case PKT_ACK_SYN:
         {
-            /* handle connection establishment */
-            switch(direction)
-            {
-                case PP_PKT_DIR_DOWNSTREAM:
-                    printf("SYN\t\\/\t");
-                    initial_seq_no_down = rtt_data->seq_num;
-                break;
+            /* handle connection establishment / handshake */
+            init_seq_number(&initial_seq_no_up, &initial_seq_no_down, direction, rtt_data);
 
-                case PP_PKT_DIR_UPSTREAM:
-                    printf("SYN\t/\\\t");
-                    initial_seq_no_up = rtt_data->seq_num;
-                break;
-
-                default:
-                    #ifdef DEBUG
-                    printf("%s Invalid packet direction!!\n", RTT_DEBUG_TAG);
-                    #endif
-                break;
-            }
             if(type == PKT_ACK_SYN)
             {
                 report_new_rtt(ts - sin_packet.timestamp,ts,direction);
                 add_new_package(1, 0, 0, 0, ts, direction);
-            }
-            else
-            {
-                sin_packet.timestamp = ts;
             }
         }
         break;
 
         case PKT_FIN:
         {
-            printf("FIN\t");
             /* Handle connection closure */
+            #ifdef DEBUG
+            switch(direction)
+            {
+                case PP_PKT_DIR_DOWNSTREAM:
+                     printf("FIN\t\\/\t");
+                break;
+
+                case PP_PKT_DIR_UPSTREAM:
+                    printf("FIN\t/\\\t");
+                break;
+
+                default:
+                    printf("%s Invalid packet direction!!\n", RTT_DEBUG_TAG);
+                break;
+            }
+            #endif
+
             if(fin_packet.seq == (rtt_data->ack_num))
             {
                 report_new_rtt(ts - fin_packet.timestamp, ts,direction);
@@ -94,89 +98,62 @@ static void __pp_rtt_analyze(void *data, uint64_t ts, int direction) {
 
         case PKT_ACK:
         {
-             /* Handle Acknowledgements */
+            uint32_t current_ack             = 0;
+            p_last_n_packages *current_queue = NULL;
+
             switch(direction)
             {
                 case PP_PKT_DIR_DOWNSTREAM:
-                {
+                    #ifdef DEBUG
                     printf("ACK\t\\/\t");
-                    current_ack_down = rtt_data->ack_num - initial_seq_no_up;
-
-                    if(upstream_packages.size > 0)
-                    {
-                        uint32_t target_ack = upstream_packages.first->seq + upstream_packages.first->length;
-
-                        /* synchronize with packet-stream */
-                        while(upstream_packages.first != upstream_packages.last &&
-                              current_ack_down        != target_ack)
-                        {
-                            printf("first seq=%d, last seq=%d\n", upstream_packages.first->seq, upstream_packages.last->seq);
-                            upstream_packages.first = upstream_packages.first + 1;
-                        }
-                        printf("down: Checking %d against %d", current_ack_down, target_ack);
-
-
-                        /* we have found a match, report! */
-                        if(current_ack_down == (upstream_packages.first->seq + upstream_packages.first->length))
-                        {
-                            report_new_rtt(ts - upstream_packages.first->timestamp, ts,direction);
-                            target_ack = upstream_packages.first->seq + upstream_packages.first->length;
-                        }
-
-                        /* we have just processed the last element in our queue, time to clean up! */
-                        if(upstream_packages.first == upstream_packages.last)
-                        {
-                            p_last_n_packages empty = {0};
-                            upstream_packages       = empty;
-                            //~ free(upstream_packages.packages);
-                            //~ upstream_packages.packages = NULL;
-                            //~ upstream_packages.size     = 0;
-                        }
-                    }
-                }
+                    #endif
+                    current_ack   = rtt_data->ack_num - initial_seq_no_up;
+                    current_queue = &upstream_packages;
                 break;
 
                 case PP_PKT_DIR_UPSTREAM:
-                {
+                    #ifdef DEBUG
                     printf("ACK\t/\\\t");
-                    current_ack_up = rtt_data->ack_num - initial_seq_no_down;
-                    if(downstream_packages.size > 0)
-                    {
-                        uint32_t target_ack = downstream_packages.first->seq + downstream_packages.first->length;
-
-                        /* synchronize with packet-stream */
-                        while(downstream_packages.first != downstream_packages.last &&
-                              current_ack_up          != target_ack)
-                        {
-                            downstream_packages.first = downstream_packages.first + 1;
-                            target_ack = downstream_packages.first->seq + downstream_packages.first->length;
-                        }
-                        printf("up: Checking %d against %d", current_ack_up, target_ack);
-
-                        /* we have found a match, report! */
-                        if(current_ack_up == (downstream_packages.first->seq + downstream_packages.first->length))
-                        {
-                            report_new_rtt(ts - downstream_packages.first->timestamp, ts,direction);
-                        }
-
-                        /* we have just processed the last element in our queue, time to clean up! */
-                        if(downstream_packages.first == downstream_packages.last)
-                        {
-                            p_last_n_packages empty = {0};
-                            downstream_packages     = empty;
-                            //~ free(downstream_packages.packages);
-                            //~ downstream_packages.packages = NULL;
-                            //~ downstream_packages.size     = 0;
-                        }
-                    }
-                }
+                    #endif
+                    current_ack   = rtt_data->ack_num - initial_seq_no_down;
+                    current_queue = &downstream_packages;
                 break;
 
                 default:
                     #ifdef DEBUG
                     printf("%s Invalid packet direction!!\n", RTT_DEBUG_TAG);
                     #endif
+                    return;
                 break;
+            }
+
+            if(current_queue->size > 0)
+            {
+                uint32_t ack_of_first_pkt_in_queue = current_queue->first->seq + current_queue->first->length;
+
+                /* synchronize with packet-stream */
+                while(current_queue->first     != current_queue->last &&
+                      ack_of_first_pkt_in_queue < current_ack)
+                {
+                    current_queue->first      = current_queue->first + 1;
+                    ack_of_first_pkt_in_queue = current_queue->first->seq + current_queue->first->length;
+                }
+                #ifdef DEBUG
+                printf("Checking %d against %d", current_ack, ack_of_first_pkt_in_queue);
+                #endif
+
+                /* we have found a match, report! */
+                if(current_ack == (current_queue->first->seq + current_queue->first->length))
+                {
+                    report_new_rtt(ts - current_queue->first->timestamp, ts,direction);
+                }
+
+                /* we have just processed the last element in our queue, time to clean up! */
+                if(current_queue->first == current_queue->last)
+                {
+                    p_last_n_packages empty = {0};
+                    *current_queue          = empty;
+                }
             }
         }
         break;
@@ -188,17 +165,21 @@ static void __pp_rtt_analyze(void *data, uint64_t ts, int direction) {
             {
                 case PP_PKT_DIR_DOWNSTREAM:
                 {
-                    printf("DATA\t\\/\t");
                     current_seq = rtt_data->seq_num - initial_seq_no_down;
+                    #ifdef DEBUG
+                    printf("DATA\t\\/\t");
                     printf("New Downstream-Package, seq(%d), size(%d)",current_seq, rtt_data->size);
+                    #endif
                 }
                 break;
 
                 case PP_PKT_DIR_UPSTREAM:
                 {
-                    printf("DATA\t/\\\t");
                     current_seq = rtt_data->seq_num - initial_seq_no_up;
+                    #ifdef DEBUG
+                    printf("DATA\t/\\\t");
                     printf("New Upstream-Package, seq(%d), size(%d)",current_seq, rtt_data->size);
+                    #endif
                 }
                 break;
 
@@ -217,7 +198,38 @@ static void __pp_rtt_analyze(void *data, uint64_t ts, int direction) {
         default:
         break;
     }
+    #ifdef DEBUG
     printf("\n");
+    #endif
+}
+
+inline void init_seq_number(uint32_t *initial_seq_no_up,
+                            uint32_t *initial_seq_no_down,
+                            int direction,
+                            struct __pp_rtt_data *rtt_data)
+{
+    switch(direction)
+    {
+        case PP_PKT_DIR_DOWNSTREAM:
+            #ifdef DEBUG
+            printf("SYN\t\\/\t");
+            #endif
+            *initial_seq_no_down = rtt_data->seq_num;
+        break;
+
+        case PP_PKT_DIR_UPSTREAM:
+            #ifdef DEBUG
+            printf("SYN\t/\\\t");
+            #endif
+            *initial_seq_no_up = rtt_data->seq_num;
+        break;
+
+        default:
+            #ifdef DEBUG
+            printf("%s Invalid packet direction!!\n", RTT_DEBUG_TAG);
+            #endif
+        break;
+    }
 }
 
 inline packet_type check_package_type(struct __pp_rtt_data *_packet_data)
@@ -259,43 +271,35 @@ inline void add_new_package(uint32_t _seq,
         newPkt.length    = _length;
         newPkt.timestamp = _timestamp;
 
+    p_last_n_packages *current_queue = NULL;
+
     switch(_direction)
     {
         case PP_PKT_DIR_UPSTREAM:
-            upstream_packages.packages = realloc(upstream_packages.packages,
-                                                (upstream_packages.size + 1) * sizeof(struct __packet));
-
-            upstream_packages.packages[upstream_packages.size] = newPkt;
-
-            upstream_packages.last = &upstream_packages.packages[upstream_packages.size];
-
-            if(upstream_packages.size == 0)
-            {
-                upstream_packages.first = &upstream_packages.packages[0];
-            }
-            upstream_packages.size++;
+            current_queue = &upstream_packages;
         break;
 
         case PP_PKT_DIR_DOWNSTREAM:
-            downstream_packages.packages = realloc(downstream_packages.packages,
-                                                (downstream_packages.size + 1) * sizeof(struct __packet));
-
-            downstream_packages.packages[downstream_packages.size] = newPkt;
-
-            downstream_packages.last = &downstream_packages.packages[downstream_packages.size];
-
-            if(downstream_packages.size == 0)
-            {
-                downstream_packages.first = &downstream_packages.packages[0];
-            }
-            downstream_packages.size++;
+            current_queue = &downstream_packages;
         break;
+
         default:
             #ifdef DEBUG
             printf("%s Invalid packet direction!!\n", RTT_DEBUG_TAG);
             #endif
+            return;
         break;
     }
+
+    current_queue->packages = realloc(current_queue->packages,
+                                     (current_queue->size + 1) * sizeof(struct __packet));
+    current_queue->packages[current_queue->size] = newPkt;
+    current_queue->last = &current_queue->packages[current_queue->size];
+    if(current_queue->size == 0)
+    {
+        current_queue->first = &current_queue->packages[0];
+    }
+    current_queue->size++;
 }
 
 inline void report_new_rtt(uint64_t _rtt, uint64_t _ts, int _direction)
@@ -323,7 +327,6 @@ inline void report_new_rtt(uint64_t _rtt, uint64_t _ts, int _direction)
             printf("%s Invalid packet direction!!\n", RTT_DEBUG_TAG);
             #endif
         break;
-
     }
 }
 
@@ -356,15 +359,27 @@ char* pp_rtt_report(uint32_t idx, struct pp_flow *flow_ctx) {
         int i;
         char buf[16000] = {'\0'};
         int wpos = 0;
+        uint32_t sum;
 
         wpos += sprintf(buf, "{");
-        for (i = 0; i < pp_rtt_report_data.size_up; i++) {
+        for (i = 0, sum = 0; i < pp_rtt_report_data.size_up; i++) {
             wpos += sprintf(&buf[wpos], "{Upstream:\tTS:%" PRIu64 ",\trtt:%d},\n", pp_rtt_report_data.data_upstream[i].timestamp,
-                                                                           pp_rtt_report_data.data_upstream[i].rtt);
+                                                                                   pp_rtt_report_data.data_upstream[i].rtt);
+            sum += pp_rtt_report_data.data_upstream[i].rtt;
         }
-        for (i = 0; i < pp_rtt_report_data.size_down; i++) {
+        if(i > 0)
+        {
+            wpos += sprintf(&buf[wpos], "{Upstream RTT-Average: %f}\n", (float)sum / (float)i);
+        }
+
+        for (i = 0,sum = 0; i < pp_rtt_report_data.size_down; i++) {
             wpos += sprintf(&buf[wpos], "{Downstream:\tTS:%" PRIu64 ",\trtt:%d},\n", pp_rtt_report_data.data_downstream[i].timestamp,
                                                                            pp_rtt_report_data.data_downstream[i].rtt);
+            sum += pp_rtt_report_data.data_downstream[i].rtt;
+        }
+        if(i > 0)
+        {
+            wpos += sprintf(&buf[wpos], "{Downstream RTT-Average: %f}\n", (float)sum/ (float)i);
         }
 
         wpos--;
@@ -426,5 +441,5 @@ void pp_rtt_destroy(uint32_t idx, struct pp_flow *flow_ctx) {
 
 /* return unique analyzer db id */
 uint32_t pp_rtt_id(void) {
-	return PP_RTT_ANALYZER_DB_ID;
+    return PP_RTT_ANALYZER_DB_ID;
 }

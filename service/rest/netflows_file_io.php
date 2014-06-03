@@ -8,7 +8,7 @@ require_once "netflows_backend_communicator.php";
  **/
 class FileIO
 {
-    const UPLOAD_PATH = "/var/www/html/upload/";
+    const UPLOAD_PATH = "../upload/";
 
     private $backend;
 
@@ -76,6 +76,7 @@ class FileIO
             }
             else
             {
+                unlink(self::UPLOAD_PATH.$filenameHash);
                 return array("status"  => "Error",
                              "message" => "Invalid PCAP-file uploaded!");
             }
