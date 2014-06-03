@@ -529,10 +529,12 @@ static int __pp_netfilter_callback(struct nfq_q_handle *qh,
 	struct timeval ts;
 	enum PP_ANALYZER_ACTION req_action = 0;
 
+#if PP_USE_VERDICT2
 	/* if the packet traverses the machine do not handle it a second time */
 	if (PP_NETFILTER_PACKET_MARK == nfq_get_nfmark(nfa)) {
 		return nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
 	}
+#endif
 
 	ph = nfq_get_msg_packet_hdr(nfa);
 	if (ph) {
@@ -548,7 +550,7 @@ static int __pp_netfilter_callback(struct nfq_q_handle *qh,
 																 (uint8_t*) packet,
 																 pkt_size,
 																 ts.tv_sec*1000000 + ts.tv_usec);
-
+#if PP_USE_VERDICT2
 	if (req_action & PP_ANALYZER_ACTION_ERROR) {
 		if (PP_DROP_PACKET_ON_ERROR) {
 			return nfq_set_verdict2(qh, id, NF_DROP, PP_NETFILTER_PACKET_MARK, 0, NULL);
@@ -561,6 +563,13 @@ static int __pp_netfilter_callback(struct nfq_q_handle *qh,
 		return nfq_set_verdict2(qh, id, NF_DROP, PP_NETFILTER_PACKET_MARK, 0, NULL);
 	}
 	return nfq_set_verdict2(qh, id, NF_ACCEPT, PP_NETFILTER_PACKET_MARK, 0, NULL);
+
+#else
+	if (req_action & PP_ANALYZER_ACTION_DROP) {
+		return nfq_set_verdict(qh, id, NF_DROP, 0, NULL);
+	}
+	return nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
+#endif
 }
 
 /**
