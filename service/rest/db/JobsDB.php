@@ -6,6 +6,7 @@ use Doctrine\ORM\EntityManager;
 
 require_once "vendor/autoload.php";
 require_once "DBConnector.php";
+require_once "netflows_backend_communicator.php";
 
 class JobsDB extends \DBConnector
 {
@@ -22,11 +23,20 @@ class JobsDB extends \DBConnector
     const T_TIME_MS_INDEX       = "time_ms";
     const ANALYZERS_INDEX       = "analyzers";
 
+    const JOB_STATE_FINISHED           = 0;
+    const JOB_STATE_FINISHED_TRUNCATED = 1;
+    const JOB_STATE_RUNNING           = 2;
+    const JOB_STATE_CREATED            = 3;
+    const JOB_STATE_WAITING            = 4;
+    const JOB_STATE_FILE_ERROR         = 5;
+    const JOB_STATE_INTERNAL_ERROR     = 6;
+
     protected $entityManager;
 
     public function __construct()
     {
-         parent::__construct();
+        parent::__construct();
+        $this->backend = new BackendCommunicator();
     }
 
     public function __destruct()
@@ -132,6 +142,7 @@ class JobsDB extends \DBConnector
         $filesize         = null;
         $packets          = null;
         $timeMS           = null;
+        $analyzers        = null;
         $analyzersObjsArr = array();
 
         //some integrity checks first:
@@ -143,9 +154,9 @@ class JobsDB extends \DBConnector
                          "message" => "An '".self::ID_INDEX."' must be provided!");
         }
 
-        if(!parent::isValidIndex($args,self::JOB_STATE_INDEX))        {
+        if(!parent::isValidIndex($args,self::FILENAME_INDEX))        {
             return array("status"  => "Error",
-                         "message" => "A '".self::JOB_STATE_INDEX."' must be provided!");
+                         "message" => "A '".self::FILENAME_INDEX."' must be provided!");
         }
 
         $alreadyExistingJob = $this->entityManager->find("Jobs",$args[self::ID_INDEX]);
@@ -156,8 +167,9 @@ class JobsDB extends \DBConnector
         }
 
         //get all provided attributes
-        $id    = $args[self::ID_INDEX];
-        $state = $args[self::JOB_STATE_INDEX];
+        $id           = $args[self::ID_INDEX];
+        $filename     = $args[self::FILENAME_INDEX];
+        $filenameHash = md5($filename);
 
         if(parent::isValidIndex($args,self::DESCRIPTION_INDEX))
             $descr = $args[self::DESCRIPTION_INDEX];
@@ -174,9 +186,6 @@ class JobsDB extends \DBConnector
         if(parent::isValidIndex($args,self::PERCENTAGE_DONE_INDEX))
             $percentage = $args[self::PERCENTAGE_DONE_INDEX];
 
-        if(parent::isValidIndex($args,self::FILENAME_INDEX))
-            $filename = $args[self::FILENAME_INDEX];
-
         if(parent::isValidIndex($args,self::FILESIZE_INDEX))
             $filesize = $args[self::FILESIZE_INDEX];
 
@@ -189,17 +198,30 @@ class JobsDB extends \DBConnector
         if(parent::isValidIndex($args,self::ANALYZERS_INDEX))
             $analyzers = explode(",",$args[self::ANALYZERS_INDEX]);
 
+        $jobStateObj = null;
+        if(parent::isValidIndex($args,self::JOB_STATE_INDEX))
+        {
+            $state = $args[self::JOB_STATE_INDEX];
+
+            $jobStateObj = $this->entityManager->find("JobStates",$state);
+            if(!isset($jobStateObj))     //if id of job-state is invalid, a null-object will be returned
+               return array("status"  => "Error",
+                            "message" => "The provided '".self::JOB_STATE_INDEX."' violates foreign key restrictions. No job-state found of ID '$state'!");
+        }
+        else
+        {
+            $jobStateObj = $this->entityManager->find("JobStates",self::JOB_STATE_CREATED);
+            if(!isset($jobStateObj))     //if id of job-state is invalid, a null-object will be returned
+               return array("status"  => "Error",
+                            "message" => "There was an internal DB-Error when trying to insert the new Job if ID: '$id'");
+        }
+
         //assemble the new job
         $job = new \Jobs();
 
         $job->setId($id);
 
-        $jobStateObj = $this->entityManager->find("JobStates",$state);
-        if(isset($jobStateObj))     //if id of job-state is invalid, a null-object will be returned
-            $job->setJobState($jobStateObj);
-        else
-           return array("status"  => "Error",
-                        "message" => "The provided '".self::JOB_STATE_INDEX."' violates foreign key restrictions. No job-state found of ID '$state'!"); 
+        $job->setJobState($jobStateObj);
 
         $job->setIsPublic($public);
 
@@ -207,7 +229,10 @@ class JobsDB extends \DBConnector
 
         $job->setFinishedTime($finished);
 
-        $job->setPercentageDone($percentage);
+        if(isset($percentage))
+            $job->setPercentageDone($percentage);
+        else
+            $job->setPercentageDone(0);
 
         $job->setDescription($descr);
 
@@ -219,19 +244,28 @@ class JobsDB extends \DBConnector
 
         $job->setTTimeMS($timeMS);
 
+
         $associatedAnalysers = $job->getAssociatedAnalyzers();
+        $analyzerFlags       = array();
         for($i = 0; $i < count($analyzers); $i++)
         {
             $analyzer = $this->entityManager->find("Analysers",$analyzers[$i]);
             if(isset($analyzer))    //if id of Analyser is invalid, a null-object will be returned
+            {
                 $associatedAnalysers->add($analyzer);
+                //remember the flags of the analyzers, will be used when calling the PP
+                array_push($analyzerFlags, $analyzer->getAssociatedPacketProcessorFlag());
+            }
         }
 
         $this->entityManager->persist($job);
         $this->entityManager->flush();
 
-        return array("status"  => "Sucess",
-                     "message" => "Created job with ID: '".$job->getId()."'");
+        $state = $this->backend->startJob($job->getId(),FileIO::UPLOAD_PATH.$filenameHash, $analyzerFlags);
+
+        return array("status"    => "Sucess",
+                     "job-state" => $state,
+                     "message"   => "Created job with ID: '".$job->getId()."'");
     }
 
     public function updateprogress($args)
@@ -294,6 +328,20 @@ class JobsDB extends \DBConnector
         }
 
         $job->setJobState($state);
+
+        switch($stateID)
+        {
+            case self::JOB_STATE_RUNNING:
+                $job->setStartTime(new \DateTime("now"));
+            break;
+
+            case self::JOB_STATE_FINISHED:
+                $job->setFinishedTime(new \DateTime("now"));
+            break;
+
+            default:
+            break;
+        }
 
         $this->entityManager->persist($job);
         $this->entityManager->flush();

@@ -2,7 +2,7 @@
 class DBParams
 {
     const DRIVER   = 'pdo_mysql';
-    const USER     = 'admin';
+    const USER     = 'root';
     const PASSWORD = '1234';
     const DBNAME   = 'netflows';
 }

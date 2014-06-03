@@ -7,8 +7,8 @@ build_pp_bin="${build_pp_dir}/packet-processor-static"
 www_root="mapped_folders/www/html/"
 www_cgi="${www_root}/cgi-bin"
 www_upload="${www_root}/upload"
-www_service_src="../service/"
-pcap_src_dir="../pcaps/"
+www_service_src="../../service/"
+pcap_src_dir="../../pcaps/"
 cur_dir=$(pwd)
 
 ##################################
@@ -30,6 +30,6 @@ cp -a "$www_service_src"/. ${www_root}
 
 echo "copy sample pcaps to ${www_upload}..."
 mkdir -p "$www_upload"
-cp "${pcap_src_dir}"/* "$www_upload"
+cp -a "${pcap_src_dir}"/* "$www_upload"
 
 # ...add basic database setup here...

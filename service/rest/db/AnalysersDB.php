@@ -43,6 +43,7 @@ class AnalysersDB extends \DBConnector
         foreach($analysers as $analyser)
         {
             $entry = array();
+            $entry[self::ID_INDEX]          = $analyser->getId();
             $entry[self::NAME_INDEX]        = $analyser->getName();
             $entry[self::DESCRIPTION_INDEX] = $analyser->getDescription();
             array_push($retArr, $entry);
@@ -86,6 +87,8 @@ class AnalysersDB extends \DBConnector
 
         if(parent::isValidIndex($args, self::IS_ACTIVE_INDEX))
             $isActive = $args[self::IS_ACTIVE_INDEX];
+        else
+            $isActive = 0;
 
         if(parent::isValidIndex($args, self::DESCRIPTION_INDEX))
             $descr = $args[self::DESCRIPTION_INDEX];

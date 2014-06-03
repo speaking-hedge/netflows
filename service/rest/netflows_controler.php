@@ -32,13 +32,13 @@ class Controller extends \RESTController //RESTControler is not in global namesp
         $this->flows     = new FlowsDB();
         $this->analysis  = new AnalysisDB();
 
-        //check for user token...
+        //here might be a good place to check for any user token, if authentication was required
     }
 
-    protected function accessBackend($method, $args)
-    {
-        return $this->callMethodOfObject($this->backend, $method, $args);
-    }
+    //~ protected function accessBackend($method, $args)
+    //~ {
+        //~ return $this->callMethodOfObject($this->backend, $method, $args);
+    //~ }
 
     protected function fileIO($method, $args)
     {
@@ -54,17 +54,17 @@ class Controller extends \RESTController //RESTControler is not in global namesp
     {
         return $this->callMethodOfObject($this->analysers, $method, $args);
     }
-    
+
     protected function accessFlows($method, $args)
     {
         return $this->callMethodOfObject($this->flows, $method, $args);
     }
-    
+
     protected function accessResults($method, $args)
     {
         return $this->callMethodOfObject($this->analysis, $method, $args);
     }
-    
+
     private function callMethodOfObject($object, $method, $args)
     {
         if(method_exists($object, $method) > 0)

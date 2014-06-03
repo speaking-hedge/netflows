@@ -1,5 +1,6 @@
 build/*
 !build/.gitignore
-test/run_container_nonsudo.sh
-test/create_container_nonsudo.sh
+utils/testing/run_container_nonsudo.sh
+utils/testing/create_container_nonsudo.sh
+pcaps/packet-processor-static
 **/.svn/
