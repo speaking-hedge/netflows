@@ -49,6 +49,13 @@ int main(int argc, char **argv) {
 		}
 	}
 
+	/* application filter needs nDPI ctx for init protocol ids */
+	if (pp_ctx.processing_options & PP_PROC_OPT_USE_PACKET_FILTER) {
+		if(pp_applictaion_filter_protocol_init(&pp_ctx)) {
+			return 1;
+		}
+	}
+
 	if (pp_ctx.processing_options & PP_PROC_OPT_USE_REST) {
 		if (pp_ctx.job_id == NULL) {
 			fprintf(stderr,"REST requires job-id.\n");
@@ -171,6 +178,10 @@ static void* __pp_show_stats_thread(void *arg) {
 
 		if (pp_ctx->processing_options & PP_PROC_OPT_DUMP_NDPI_STATS) {
 			pp_ndpi_stats_dump(pp_ctx);
+		}
+
+		if (pp_ctx->processing_options & PP_PROC_OPT_DUMP_APP_FILTER_STATS) {
+			pp_application_filter_status_dump();
 		}
 
 		pthread_mutex_unlock(&pp_ctx->pm_stats);
@@ -397,14 +408,6 @@ static enum PP_ANALYZER_ACTION __pp_packet_handler(struct pp_context *pp_ctx,
 
 			} /* __new_flow */
 
-			/* run selected analyzers */
-			analyzer = pp_ctx->analyzers;
-			while (analyzer) {
-				/* TODO: use action */
-				req_action |= analyzer->inspect(analyzer->idx, &pkt_ctx, flow);
-				analyzer = analyzer->next_analyzer;
-			}
-
 			/* run ndpi */
 			if ( !flow->ndpi_shortcut && (pp_ctx->processing_options & PP_PROC_OPT_USE_NDPI) ) {
 				flow->ndpi_protocol = (const u_int32_t)ndpi_detection_process_packet(pp_ctx->ndpi_ctx,
@@ -426,6 +429,13 @@ static enum PP_ANALYZER_ACTION __pp_packet_handler(struct pp_context *pp_ctx,
 				}
 
 			} /* __run_ndpi */
+
+			/* run selected analyzers */
+			analyzer = pp_ctx->analyzers;
+			while (analyzer) {
+				req_action |= analyzer->inspect(analyzer->idx, &pkt_ctx, flow);
+				analyzer = analyzer->next_analyzer;
+			}
 
 			pthread_mutex_unlock(&flow->lock);
 
@@ -593,6 +603,7 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_context *pp_ctx) {
 		{"dump-flows", 0, NULL, 'F'},
 		{"dump-table-stats", 0, NULL, 'T'},
 		{"dump-packet-processor-stats", 0, NULL, 'p'},
+		{"dump-app-filter-stats", 0, NULL, 'S'},
 		{"window-size-analyzer",0 , NULL, 'w'},
 		{"analyze-infinity", 0, NULL, 'i'},
 		{"analyze-timespan", required_argument, NULL, 't'},
@@ -604,13 +615,15 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_context *pp_ctx) {
 		{"live-analyze-nf", optional_argument, NULL, 'z'},
 		{"bandwidth-analyzer", 0, NULL, 'b'},
 		{"rtt-analyzer", 0, NULL, 'q'},
+		{"app-filter", required_argument, NULL, 'A'},
 		{NULL, 0, NULL, 0}
 	};
-	int opt = 0, i = 0;
+	int opt = 0, i = 0, rc = 0;
 	char *endptr = NULL;
+	uint32_t proto_id = 0;
 
 	while(1) {
-		opt = getopt_long(argc, argv, "hva:l:c:o:jf:J:r::PFTpwqit:n:g::DLNz::b", options, NULL);
+		opt = getopt_long(argc, argv, "hva:l:c:o:jf:J:r::PFTpwqit:n:g::DLNz::bA:S", options, NULL);
 		if (opt == -1)
 			break;
 
@@ -701,7 +714,7 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_context *pp_ctx) {
 				pp_ctx->processing_options |= PP_PROC_OPT_USE_REST;
 				break;
 			case 'w': /* analyze window size */
-				pp_analyzer_register(&pp_ctx->analyzers,
+				switch(pp_analyzer_register(&pp_ctx->analyzers,
 									 &pp_window_size_inspect,
 									 &pp_window_size_analyze,
 									 &pp_window_size_report,
@@ -709,12 +722,17 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_context *pp_ctx) {
 									 &pp_window_size_init,
 									 &pp_window_size_destroy,
 									 &pp_window_size_id,
-									 NULL);
-				pp_ctx->analyzer_num++;
+									 NULL)) {
+				case 0:
+					pp_ctx->analyzer_num++;
+					break;
+				case ENOMEM:
+					fprintf(stderr, "failed to register analyzer. abort.\n");
+					exit(1);
+				}
 				break;
-
 			 case 'q': /* analyze round trip time */
-				pp_analyzer_register(&pp_ctx->analyzers,
+				switch(pp_analyzer_register(&pp_ctx->analyzers,
 					             &pp_rtt_inspect,
 					             &pp_rtt_analyze,
 					             &pp_rtt_report,
@@ -722,9 +740,15 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_context *pp_ctx) {
 					             &pp_rtt_init,
 					             &pp_rtt_destroy,
 					             &pp_rtt_id,
-					                 NULL);
-				pp_ctx->analyzer_num++;
-			break;
+					                 NULL)) {
+				case 0:
+					pp_ctx->analyzer_num++;
+					break;
+				case ENOMEM:
+					fprintf(stderr, "failed to register analyzer. abort.\n");
+					exit(1);
+				}
+				break;
 			case 'i':
 				pp_ctx->analyzer_mode = PP_ANALYZER_MODE_INFINITY;
 				break;
@@ -771,7 +795,7 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_context *pp_ctx) {
 				pp_ctx->processing_options |= PP_PROC_OPT_DUMP_NDPI_STATS;
 				break;
 			case 'b':
-				pp_analyzer_register(&pp_ctx->analyzers,
+				switch(pp_analyzer_register(&pp_ctx->analyzers,
 									 &pp_bandwidth_inspect,
 									 &pp_bandwidth_analyze,
 									 &pp_bandwidth_report,
@@ -779,8 +803,39 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_context *pp_ctx) {
 									 &pp_bandwidth_init,
 									 &pp_bandwidth_destroy,
 									 &pp_bandwidth_id,
-									 NULL);
-				pp_ctx->analyzer_num++;
+									 NULL)) {
+				case 0:
+					pp_ctx->analyzer_num++;
+					break;
+				case ENOMEM:
+					fprintf(stderr, "failed to register analyzer. abort.\n");
+					exit(1);
+				}
+				break;
+			case 'A':
+				switch(pp_analyzer_register(&pp_ctx->analyzers,
+										 &pp_application_filter_inspect,
+										 NULL,
+										 NULL,
+										 &pp_application_filter_describe,
+										 &pp_application_filter_init,
+										 &pp_application_filter_destroy,
+										 &pp_application_filter_id,
+										 NULL)) {
+				case 0:
+					pp_ctx->analyzer_num++;
+					break;
+				case ENOMEM:
+					fprintf(stderr, "failed to register analyzer. abort.\n");
+					exit(1);
+				}
+				pp_ctx->processing_options |= PP_PROC_OPT_USE_PACKET_FILTER;
+				pp_ctx->processing_options |= PP_PROC_OPT_WILL_DROP_PACKETS;
+				pp_ctx->processing_options |= PP_PROC_OPT_USE_NDPI;
+				pp_application_filter_protocol_add(optarg);
+				break;
+			case 'S':
+				pp_ctx->processing_options |= PP_PROC_OPT_DUMP_APP_FILTER_STATS;
 				break;
 			default:
 				abort();
@@ -790,6 +845,13 @@ int pp_parse_cmd_line(int argc, char **argv, struct pp_context *pp_ctx) {
 	/* sanity checks */
 	if (pp_ctx->action == PP_ACTION_UNDEFINED) {
 		fprintf(stderr, "no action specified. abort.\n");
+		return 1;
+	}
+
+	if ( !(pp_ctx->processing_options & PP_PROC_OPT_CAN_DROP_PACKETS) &&
+		  (pp_ctx->processing_options & PP_PROC_OPT_WILL_DROP_PACKETS)) {
+		fprintf(stderr, "selected analyzer needs drop packets capability - but selected packet source does not offer that kind functionality.\n");
+		fprintf(stderr, "use packet source netfilter queue (--live-analyze-nf) or remove filter. abort.\n");
 		return 1;
 	}
 
@@ -918,7 +980,7 @@ void pp_usage(void) {
 	printf("-J --job-id <id>               use given id <id> to identify\n");
 	printf("                               generated reports\n");
 	printf("-a --analyze <file>            analyze given pcap(ng) file\n");
-	printf("-l --live-analyze-socket <if>  capture and analyze traffic from \n");
+	printf("-l --live-analyze-socket <iflist-ndpi-protocols>  capture and analyze traffic from \n");
 	printf("                               given interface (may need root)\n");
 	printf("-z --live-analyze-nf <if>      capture and analyze traffic from\n");
 	printf("                               given interface (default: all),\n");
@@ -930,6 +992,10 @@ void pp_usage(void) {
 	printf("-w --window-size-analyzer      analyze window size of detected flows\n");
 	printf("-b --bandwidth-analyzer        analyze used bandwidth of dectected flows\n");
 	printf("-q --rtt-analyzer              analyze round trip time\n");
+	printf("-A --app-filter <app-name>     block application given by name\n");
+	printf("                               can be used multible times\n");
+	printf("                               use --list-ndpi-protocols to get a list\n");
+	printf("                               of available protocol names\n");
 	printf("\n");
 	printf("-v --version                   show program version\n");
 	printf("-h --help                      show help\n");
@@ -946,6 +1012,7 @@ void pp_usage(void) {
 	printf("-F --dump-flows                dump all flows at exit\n");
 	printf("-T --dump-table-stats          dump flow table stats at exit\n");
 	printf("-p --dump-pp-stats             dump packet processor stats at exit\n");
+	printf("-S --dump-app-filter-stats     dump application filter stats\n");
 	printf("\n");
 	printf("-i --analyze-infinite          analyze all packets (default)\n");
 	printf("-t --analyze-timespan <num>    only analyze packets within the last\n");

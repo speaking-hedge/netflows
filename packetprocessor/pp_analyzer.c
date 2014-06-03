@@ -10,7 +10,8 @@
  * @param destroy funtion to clean up all data used by the analyzer on that flow
  * @param usr_ptr to store user data into (can be NULL)
  * @retval 0 on success
- * @retval 1 on error
+ * @retval EADDRINUSE if the analyzer was already registered
+ * @retval ENOMEM if there was a problem during init
  */
 int pp_analyzer_register(struct pp_analyzer **analyzer_list,
 						 enum PP_ANALYZER_ACTION (*inspect)(uint32_t idx, struct pp_packet_context *pkt_ctx, struct pp_flow *flow_ctx),
@@ -31,14 +32,14 @@ int pp_analyzer_register(struct pp_analyzer **analyzer_list,
 
 		while(cur) {
 			if (cur->id() == id()) {
-				return 0;
+				return EADDRINUSE;
 			}
 			cur = cur->next_analyzer;
 		}
 	}
 
 	if (!(new_analyzer = malloc(sizeof(struct pp_analyzer)))) {
-		return 1;
+		return ENOMEM;
 	}
 
 	new_analyzer->inspect = inspect;
@@ -48,6 +49,7 @@ int pp_analyzer_register(struct pp_analyzer **analyzer_list,
 	new_analyzer->init = init;
 	new_analyzer->destroy = destroy;
 	new_analyzer->id = id;
+	new_analyzer->usr_ptr = usr_ptr;
 
 	new_analyzer->next_analyzer = NULL;
 	new_analyzer->idx = analyzer_idx++;

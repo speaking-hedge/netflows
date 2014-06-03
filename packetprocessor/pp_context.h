@@ -36,18 +36,21 @@ struct pp_context {
 							  uint64_t timestamp_usec);
 
 	enum {
-		PP_PROC_OPT_NONE             = 0,
-		PP_PROC_OPT_CREATE_HASH      = 1<<0,
-		PP_PROC_OPT_DUMP_EACH_PACKET = 1<<1,
-		PP_PROC_OPT_DUMP_FLOWS       = 1<<2,
-		PP_PROC_OPT_DUMP_TABLE_STATS = 1<<3,
-		PP_PROC_OPT_DUMP_PP_STATS    = 1<<4,
-		PP_PROC_OPT_USE_REST         = 1<<5,
-		PP_PROC_OPT_SHOW_FLOWTOP     = 1<<6,
-		PP_PROC_OPT_USE_NDPI         = 1<<7,
-		PP_PROC_OPT_LIST_NDPI_PROTOS = 1<<8,
-		PP_PROC_OPT_DUMP_NDPI_STATS  = 1<<9,
-		PP_PROC_OPT_CAN_DROP_PACKETS = 1<<10,
+		PP_PROC_OPT_NONE                   = 0,
+		PP_PROC_OPT_CREATE_HASH            = 1<<0,
+		PP_PROC_OPT_DUMP_EACH_PACKET       = 1<<1,
+		PP_PROC_OPT_DUMP_FLOWS             = 1<<2,
+		PP_PROC_OPT_DUMP_TABLE_STATS       = 1<<3,
+		PP_PROC_OPT_DUMP_PP_STATS          = 1<<4,
+		PP_PROC_OPT_USE_REST               = 1<<5,
+		PP_PROC_OPT_SHOW_FLOWTOP           = 1<<6,
+		PP_PROC_OPT_USE_NDPI               = 1<<7,
+		PP_PROC_OPT_LIST_NDPI_PROTOS       = 1<<8,
+		PP_PROC_OPT_DUMP_NDPI_STATS        = 1<<9,
+		PP_PROC_OPT_CAN_DROP_PACKETS       = 1<<10,
+		PP_PROC_OPT_WILL_DROP_PACKETS      = 1<<11,
+		PP_PROC_OPT_USE_PACKET_FILTER      = 1<<12,
+		PP_PROC_OPT_DUMP_APP_FILTER_STATS  = 1<<13,
 		PP_PROC_OPT_EOL
 	} processing_options;
 

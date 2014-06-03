@@ -111,22 +111,50 @@ int pp_ndpi_flow_attach(struct pp_flow *flow_ctx, struct pp_packet_context *pck_
 }
 
 /**
- * @brief return the protocol name for the protocol detected for the given flow
+ * @brief return the protocol name for the protocol given by id
  * @param pp_ctx packet processor context that holds the ndpi context
- * @param flow_ctx to get the name for the protocol for
+ * @param protocol_id id of the protocol to get the name for
  * @retval name of the protocol if ndpi enabled
  * @retval <ndpi disabled> if ndpi is not used
  */
-inline const char* pp_ndpi_get_protocol_name(struct pp_context *pp_ctx, struct pp_flow *flow_ctx) {
+inline const char* pp_ndpi_get_protocol_name(struct pp_context *pp_ctx, uint32_t protocol_id) {
 
 	assert(pp_ctx);
-	assert(flow_ctx);
 
 	if (pp_ctx->ndpi_ctx) {
-		return ndpi_get_proto_name(pp_ctx->ndpi_ctx, flow_ctx->ndpi_protocol);
+		return ndpi_get_proto_name(pp_ctx->ndpi_ctx, protocol_id);
 	} else {
 		return "<ndpi disabled>";
 	}
+}
+
+/**
+ * @brief return the id of the protocol given by name
+ * @param pp_ctx packet processor context that holds the ndpi context
+ * @param protocol_name (caseinsensitive) of the protocol to return the id for
+ * @retval id of the protocol if ndpi enabled and protocol was found
+ * @retval 0 if ndpi is not used or protocol is unknown
+ */
+uint32_t pp_ndpi_get_protocol_id(struct pp_context *pp_ctx, const char *protocol_name) {
+
+	int i = 0;
+	struct ndpi_detection_module_struct *ndpi_ctx = NULL;
+
+	assert(pp_ctx);
+
+	if (!pp_ctx->ndpi_ctx || !protocol_name) {
+		return 0;
+	}
+
+	ndpi_ctx = pp_ctx->ndpi_ctx;
+
+	for (i = 0; i < ndpi_ctx->ndpi_num_supported_protocols; i++) {
+		if (!strcasecmp(protocol_name, ndpi_ctx->proto_defaults[i].protoName)) {
+			return i;
+		}
+	}
+
+	return 0;
 }
 
 /**
