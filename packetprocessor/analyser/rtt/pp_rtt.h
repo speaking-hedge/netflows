@@ -63,7 +63,7 @@ PP_ANALYZER_STORE_CREATE(pp_rtt, struct __pp_rtt_data);
 enum PP_ANALYZER_ACTION pp_rtt_inspect(uint32_t idx, struct pp_packet_context *pkt_ctx, struct pp_flow *flow_ctx);
 void pp_rtt_analyze(uint32_t idx, struct pp_flow *flow_ctx);
 char* pp_rtt_report(uint32_t idx, struct pp_flow *flow_ctx);
-char* pp_rtt_describe(struct pp_flow *flow_ctx);
+char* pp_rtt_describe(void);
 void pp_rtt_init(uint32_t idx, struct pp_flow *flow_ctx, enum PP_ANALYZER_MODES mode, uint32_t mode_val);
 void pp_rtt_destroy(uint32_t idx, struct pp_flow *flow_ctx);
 inline void report_new_rtt(uint64_t _rtt, uint64_t _ts, int _direction);

@@ -149,7 +149,7 @@ char* pp_bandwidth_report(uint32_t idx, struct pp_flow *flow_ctx) {
 }
 
 /* self description function */
-char* pp_bandwidth_describe(struct pp_flow *flow_ctx) {
+char* pp_bandwidth_describe(void) {
 
 	/* TODO */
 	return strdup("calculate used bandwidth per flow in bit per second");
@@ -179,4 +179,4 @@ void pp_bandwidth_destroy(uint32_t idx, struct pp_flow *flow_ctx) {
 uint32_t pp_bandwidth_id(void) {
 	return PP_BANDWIDTH_ANALYZER_DB_ID;
 }
-	
+

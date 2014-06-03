@@ -49,7 +49,7 @@ PP_ANALYZER_STORE_CREATE(pp_bandwidth, struct __pp_bandwidth_data);
 enum PP_ANALYZER_ACTION pp_bandwidth_inspect(uint32_t idx, struct pp_packet_context *pkt_ctx, struct pp_flow *flow_ctx);
 void pp_bandwidth_analyze(uint32_t idx, struct pp_flow *flow_ctx);
 char* pp_bandwidth_report(uint32_t idx, struct pp_flow *flow_ctx);
-char* pp_bandwidth_describe(struct pp_flow *flow_ctx);
+char* pp_bandwidth_describe(void);
 void pp_bandwidth_init(uint32_t idx, struct pp_flow *flow_ctx, enum PP_ANALYZER_MODES mode, uint32_t mode_val);
 void pp_bandwidth_destroy(uint32_t idx, struct pp_flow *flow_ctx);
 uint32_t pp_bandwidth_id(void);

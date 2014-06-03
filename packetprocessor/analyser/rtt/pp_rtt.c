@@ -378,7 +378,7 @@ char* pp_rtt_report(uint32_t idx, struct pp_flow *flow_ctx) {
 }
 
 /* self description function */
-char* pp_rtt_describe(struct pp_flow *flow_ctx) {
+char* pp_rtt_describe(void) {
 
     /* TODO */
     return strdup("This analyzers measures the Round-Trip-Time (RTT) of a given packet stream.");

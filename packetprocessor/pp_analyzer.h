@@ -67,7 +67,7 @@ struct pp_analyzer {
 	 * returns a short description of the analyzer
 	 * invoked by: manually, help function
 	 * */
-	char* (*describe)(struct pp_flow *flow_ctx);
+	char* (*describe)(void);
 
 	/* init function
 	 * creates the context of the analyzer
@@ -80,7 +80,7 @@ struct pp_analyzer {
 	 * invoked by: on exit by the packet prozessor
 	 * */
 	void (*destroy)(uint32_t idx,struct pp_flow *flow_ctx);
-	
+
 	/* returns the database id of the analyzer */
 	uint32_t (*id)(void);
 
@@ -95,7 +95,7 @@ int pp_analyzer_register(struct pp_analyzer **analyzer_list,
 						 enum PP_ANALYZER_ACTION (*inspect)(uint32_t idx, struct pp_packet_context *pkt_ctx, struct pp_flow *flow_ctx),
 						 void (*analyze)(uint32_t idx, struct pp_flow *flow_ctx),
 						 char* (*report)(uint32_t idx, struct pp_flow *flow_ctx),
-						 char* (*describe)(struct pp_flow *flow_ctx),
+						 char* (*describe)(void),
 						 void (*init)(uint32_t idx, struct pp_flow *flow_ctx, enum PP_ANALYZER_MODES mode, uint32_t mode_val),
 						 void (*destroy)(uint32_t idx, struct pp_flow *flow_ctx),
 						 uint32_t (*id)(void),

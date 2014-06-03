@@ -79,7 +79,7 @@ char* pp_window_size_report(uint32_t idx, struct pp_flow *flow_ctx) {
 }
 
 /* self description function */
-char* pp_window_size_describe(struct pp_flow *flow_ctx) {
+char* pp_window_size_describe(void) {
 
     /* TODO */
     return strdup("its me - window size analyzer");
