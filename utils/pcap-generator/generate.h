@@ -4,6 +4,8 @@
 #include <netinet/if_ether.h>
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
+#include <string.h>
+#include "nethost.h"
 
 /* Libpcap file format */
 
